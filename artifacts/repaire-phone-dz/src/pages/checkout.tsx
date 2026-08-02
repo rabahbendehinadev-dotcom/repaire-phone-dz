@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useCart } from '@/hooks/use-cart-store';
-import { useCreateOrder, useSubmitPaymentProof } from '@workspace/api-client-react';
+import { useCreateOrder } from '@workspace/api-client-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -76,7 +76,7 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; description: strin
 export default function Checkout() {
   const { cart, isLoading, clearCart } = useCart();
   const createOrder = useCreateOrder();
-  const submitProof = useSubmitPaymentProof();
+  const [isSubmittingProof, setIsSubmittingProof] = useState(false);
   const [, setLocation] = useLocation();
   const [orderComplete, setOrderComplete] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash_on_delivery');
@@ -123,12 +123,21 @@ export default function Checkout() {
 
   const handleSubmitProof = async () => {
     if (!proofUrl.trim() || !orderComplete) return;
+    setIsSubmittingProof(true);
     try {
-      await submitProof.mutateAsync({ id: orderComplete.id, data: { paymentProofUrl: proofUrl.trim() } });
+      const res = await fetch(`/api/orders/${orderComplete.id}/payment-proof`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ paymentProofUrl: proofUrl.trim() }),
+      });
+      if (!res.ok) throw new Error();
       setProofSubmitted(true);
       toast.success('Preuve de paiement envoyée. Nous vérifierons votre virement.');
     } catch {
       toast.error('Erreur lors de l\'envoi de la preuve');
+    } finally {
+      setIsSubmittingProof(false);
     }
   };
 

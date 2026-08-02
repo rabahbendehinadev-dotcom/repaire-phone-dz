@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import { useAdminAuth } from '@/hooks/use-admin-auth';
 import { useLocation, Link } from 'wouter';
 import { 

@@ -13,7 +13,7 @@ import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useListAllOrders, useUpdateOrderStatus, useUpdateOrderPayment, getListAllOrdersQueryKey } from '@workspace/api-client-react';
+import { useListAllOrders, useUpdateOrderStatus, getListAllOrdersQueryKey } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 
 const STATUS_OPTIONS = [
@@ -62,7 +62,25 @@ export default function AdminOrders() {
   const { data: ordersData, isLoading } = useListAllOrders(queryParams, { query: { queryKey: getListAllOrdersQueryKey(queryParams) } });
 
   const updateStatus = useUpdateOrderStatus();
-  const updatePayment = useUpdateOrderPayment();
+
+  const handleUpdatePayment = async (orderId: number, newPaymentStatus: string) => {
+    try {
+      await fetch(`/api/orders/${orderId}/payment-status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ paymentStatus: newPaymentStatus, paymentNotes: paymentNotes || undefined }),
+      }).then(r => { if (!r.ok) throw new Error(); });
+      toast.success(newPaymentStatus === 'confirmed' ? 'Paiement confirmé ✓' : 'Statut de paiement mis à jour');
+      queryClient.invalidateQueries({ queryKey: getListAllOrdersQueryKey() });
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, paymentStatus: newPaymentStatus });
+      }
+      setPaymentNotes('');
+    } catch {
+      toast.error('Erreur lors de la mise à jour du paiement');
+    }
+  };
 
   const handleUpdateStatus = async (orderId: number, newStatus: any) => {
     try {
@@ -74,28 +92,6 @@ export default function AdminOrders() {
       }
     } catch (err: any) {
       toast.error('Erreur lors de la mise à jour du statut');
-    }
-  };
-
-  const handleUpdatePayment = async (orderId: number, newPaymentStatus: string) => {
-    try {
-      await updatePayment.mutateAsync({
-        id: orderId,
-        data: { paymentStatus: newPaymentStatus as any, paymentNotes: paymentNotes || undefined }
-      });
-      toast.success(newPaymentStatus === 'confirmed' ? 'Paiement confirmé ✓' : 'Statut de paiement mis à jour');
-      queryClient.invalidateQueries({ queryKey: getListAllOrdersQueryKey() });
-      if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder({
-          ...selectedOrder,
-          paymentStatus: newPaymentStatus,
-          paymentNotes: paymentNotes || selectedOrder.paymentNotes,
-          status: newPaymentStatus === 'confirmed' && selectedOrder.status === 'pending' ? 'confirmed' : selectedOrder.status,
-        });
-      }
-      setPaymentNotes('');
-    } catch {
-      toast.error('Erreur lors de la mise à jour du paiement');
     }
   };
 
