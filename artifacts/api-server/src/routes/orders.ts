@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, ilike, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { db, ordersTable, cartTable, usersTable } from "@workspace/db";
-import { requireAuth, requireAdmin } from "../lib/auth";
+import { requireAuth } from "../lib/auth";
+import { requireAdminSession, requirePermission, logActivity, getIp } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 
@@ -56,12 +57,12 @@ router.get("/orders/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 // Admin routes
-router.get("/admin/orders", requireAdmin, async (req, res): Promise<void> => {
-  const { page = "1", limit = "20", status, search } = req.query as Record<string, string>;
+router.get("/admin/orders", requireAdminSession, requirePermission("manage_orders"), async (req, res): Promise<void> => {
+  const { page = "1", limit = "20", status } = req.query as Record<string, string>;
   const pageNum = parseInt(page, 10) || 1;
   const limitNum = parseInt(limit, 10) || 20;
   const offset = (pageNum - 1) * limitNum;
-  const conditions: any[] = [];
+  const conditions: ReturnType<typeof eq>[] = [];
   if (status) conditions.push(eq(ordersTable.status, status));
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(ordersTable).where(whereClause);
@@ -72,12 +73,14 @@ router.get("/admin/orders", requireAdmin, async (req, res): Promise<void> => {
   res.json({ orders: orders.map((o) => formatOrder({ ...o.order, userName: o.userName, userEmail: o.userEmail })), total: count, page: pageNum, totalPages: Math.ceil(count / limitNum) });
 });
 
-router.patch("/admin/orders/:id/status", requireAdmin, async (req, res): Promise<void> => {
+router.patch("/admin/orders/:id/status", requireAdminSession, requirePermission("manage_orders"), async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const { status } = req.body;
   if (!status) { res.status(400).json({ error: "status requis" }); return; }
+  const [old] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
   const [order] = await db.update(ordersTable).set({ status }).where(eq(ordersTable.id, id)).returning();
   if (!order) { res.status(404).json({ error: "Commande non trouvée" }); return; }
+  await logActivity(req.adminUser!.id, req.adminUser!.fullName, "update_order_status", "order", id, { status: old?.status }, { status }, getIp(req));
   res.json(formatOrder(order));
 });
 

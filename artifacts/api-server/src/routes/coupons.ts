@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, couponsTable } from "@workspace/db";
-import { requireAdmin } from "../lib/auth";
+import { requireAdminSession, requirePermission, logActivity, getIp } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 
@@ -15,12 +15,12 @@ function formatCoupon(c: any) {
   };
 }
 
-router.get("/coupons", requireAdmin, async (_req, res): Promise<void> => {
+router.get("/coupons", requireAdminSession, requirePermission("manage_coupons"), async (_req, res): Promise<void> => {
   const coupons = await db.select().from(couponsTable).orderBy(couponsTable.createdAt);
   res.json(coupons.map(formatCoupon));
 });
 
-router.post("/coupons", requireAdmin, async (req, res): Promise<void> => {
+router.post("/coupons", requireAdminSession, requirePermission("manage_coupons"), async (req, res): Promise<void> => {
   const { code, discountType, discountValue, minOrderAmount, maxUses, expiresAt } = req.body;
   if (!code || !discountType || discountValue == null) { res.status(400).json({ error: "code, discountType, discountValue requis" }); return; }
   const [coupon] = await db.insert(couponsTable).values({
@@ -29,10 +29,11 @@ router.post("/coupons", requireAdmin, async (req, res): Promise<void> => {
     maxUses: maxUses || null, isActive: true,
     expiresAt: expiresAt ? new Date(expiresAt) : null,
   }).returning();
+  await logActivity(req.adminUser!.id, req.adminUser!.fullName, "create_coupon", "coupon", coupon.id, null, { code: coupon.code }, getIp(req));
   res.status(201).json(formatCoupon(coupon));
 });
 
-router.patch("/coupons/:id", requireAdmin, async (req, res): Promise<void> => {
+router.patch("/coupons/:id", requireAdminSession, requirePermission("manage_coupons"), async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const updates: Record<string, unknown> = {};
   const { code, discountType, discountValue, minOrderAmount, maxUses, isActive, expiresAt } = req.body;
@@ -45,12 +46,14 @@ router.patch("/coupons/:id", requireAdmin, async (req, res): Promise<void> => {
   if (expiresAt !== undefined) updates.expiresAt = expiresAt ? new Date(expiresAt) : null;
   const [coupon] = await db.update(couponsTable).set(updates).where(eq(couponsTable.id, id)).returning();
   if (!coupon) { res.status(404).json({ error: "Coupon non trouvé" }); return; }
+  await logActivity(req.adminUser!.id, req.adminUser!.fullName, "update_coupon", "coupon", id, null, updates, getIp(req));
   res.json(formatCoupon(coupon));
 });
 
-router.delete("/coupons/:id", requireAdmin, async (req, res): Promise<void> => {
+router.delete("/coupons/:id", requireAdminSession, requirePermission("manage_coupons"), async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   await db.delete(couponsTable).where(eq(couponsTable.id, id));
+  await logActivity(req.adminUser!.id, req.adminUser!.fullName, "delete_coupon", "coupon", id, null, null, getIp(req));
   res.json({ message: "Coupon supprimé" });
 });
 

@@ -1,194 +1,307 @@
-import { Link, useLocation } from "wouter"
-import { Home, Grid, Search, Heart, ShoppingCart, User, Menu, ChevronRight } from "lucide-react"
-import { useCart } from "@/hooks/use-cart-store"
-import { cn } from "@/lib/utils"
-import logoImg from "@assets/ChatGPT_Image_2_août_2026,_13_45_41_1785675043454.png"
+import { ReactNode, useState } from 'react';
+import { Link, useLocation } from 'wouter';
+import { useCart } from '@/hooks/use-cart-store';
+import { useWishlist } from '@/hooks/use-wishlist';
+import { useAuth } from '@/hooks/use-auth';
+import { 
+  ShoppingCart, Heart, User, Search, Menu, 
+  Phone, Mail, Facebook, Instagram, Home, LayoutGrid, X
+} from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
-export function MainLayout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation()
-  const { itemCount } = useCart()
+interface MainLayoutProps {
+  children: ReactNode;
+}
 
-  const navItems = [
-    { icon: Home, label: "Accueil", href: "/" },
-    { icon: Grid, label: "Catégories", href: "/categories" },
-    { icon: Search, label: "Recherche", href: "/products" },
-    { icon: Heart, label: "Favoris", href: "/wishlist" },
-    { 
-      icon: ShoppingCart, 
-      label: "Panier", 
-      href: "/cart",
-      badge: itemCount > 0 ? itemCount : undefined
-    },
-  ]
+export function MainLayout({ children }: MainLayoutProps) {
+  const [location, setLocation] = useLocation();
+  const { itemCount } = useCart();
+  const { items: wishlistItems } = useWishlist();
+  const { user, isAuthenticated, logout } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      setLocation(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
+  const navLinks = [
+    { label: 'Accueil', href: '/' },
+    { label: 'Tous les Produits', href: '/products' },
+    { label: 'Catégories', href: '/categories' },
+    { label: 'Nouveautés', href: '/products?isNew=true' },
+    { label: 'Promotions', href: '/products?hasDiscount=true' },
+  ];
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-gray-50 pb-16 md:pb-0">
-      {/* Desktop Top Bar */}
-      <div className="hidden md:block bg-navy text-white text-xs py-2 px-4">
-        <div className="container mx-auto flex justify-between items-center">
-          <div>L'équipement professionnel de réparation de téléphone en Algérie</div>
-          <div className="flex gap-4">
-            <Link href="/profile" className="hover:text-primary transition-colors">Mon Compte</Link>
-            <Link href="/orders" className="hover:text-primary transition-colors">Mes Commandes</Link>
-            <span>Service Client: +213 555 00 00 00</span>
+    <div className="min-h-[100dvh] flex flex-col bg-background font-sans selection:bg-primary/20">
+      {/* Top Bar - Desktop only */}
+      <div className="hidden md:flex h-10 bg-navy text-navy-foreground items-center justify-between px-6 text-sm">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <Phone className="h-4 w-4 text-secondary" />
+            <span>+213 (0) 555 123 456</span>
           </div>
+          <div className="flex items-center gap-2">
+            <Mail className="h-4 w-4 text-secondary" />
+            <span>contact@repairephone.dz</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-muted-foreground/80">L'équipement professionnel des techniciens</span>
         </div>
       </div>
 
       {/* Main Header */}
-      <header className="sticky top-0 z-40 w-full bg-white border-b border-border shadow-sm">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
-          {/* Mobile Menu & Logo */}
-          <div className="flex items-center gap-3">
-            <button className="md:hidden p-2 -ml-2 text-navy">
-              <Menu className="w-6 h-6" />
-            </button>
-            <Link href="/" className="flex items-center gap-2">
-              <img src={logoImg} alt="Repaire Phone DZ" className="h-8 object-contain" />
+      <header className="sticky top-0 z-40 w-full bg-card border-b border-border shadow-sm">
+        <div className="container mx-auto px-4 lg:px-6 h-20 flex items-center justify-between gap-4 lg:gap-8">
+          
+          {/* Logo */}
+          <div className="flex items-center gap-4 shrink-0">
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsMobileMenuOpen(true)}>
+              <Menu className="h-6 w-6" />
+            </Button>
+            <Link href="/" className="flex items-center gap-2 cursor-pointer">
+              <span className="font-extrabold text-2xl tracking-tight text-primary">
+                Repaire<span className="text-secondary">DZ</span>
+              </span>
             </Link>
           </div>
 
-          {/* Desktop Search */}
-          <div className="hidden md:flex flex-1 max-w-xl mx-8 relative">
-            <input 
-              type="text" 
-              placeholder="Rechercher un outil, une pièce..." 
-              className="w-full h-11 pl-4 pr-12 rounded-full border-2 border-primary/20 focus:border-primary outline-none bg-gray-50 transition-colors"
-            />
-            <button className="absolute right-0 top-0 h-11 w-12 flex items-center justify-center text-primary rounded-r-full hover:bg-primary/5 transition-colors">
-              <Search className="w-5 h-5" />
-            </button>
+          {/* Search Bar - Desktop */}
+          <div className="hidden md:flex flex-1 max-w-2xl">
+            <form onSubmit={handleSearch} className="relative w-full flex items-center">
+              <Input
+                type="search"
+                placeholder="Rechercher une pièce, un outil, un SKU..."
+                className="w-full h-11 pr-14 bg-muted border-border focus-visible:ring-primary rounded-r-none"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <Button type="submit" className="h-11 rounded-l-none bg-primary hover:bg-primary/90 text-primary-foreground px-6">
+                <Search className="h-5 w-5" />
+              </Button>
+            </form>
           </div>
 
-          {/* Desktop Actions & Mobile Search Icon */}
-          <div className="flex items-center gap-1 md:gap-4">
-            <Link href="/products" className="md:hidden p-2 text-navy">
-              <Search className="w-6 h-6" />
+          {/* Actions */}
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <Link href={isAuthenticated ? "/profile" : "/auth/login"} className="hidden sm:flex flex-col items-center justify-center p-2 text-muted-foreground hover:text-primary transition-colors">
+              <User className="h-6 w-6 mb-1" />
+              <span className="text-[10px] font-semibold uppercase">{isAuthenticated ? "Compte" : "Connexion"}</span>
             </Link>
-            <Link href="/profile" className="hidden md:flex flex-col items-center justify-center w-12 h-12 text-navy hover:text-primary transition-colors">
-              <User className="w-6 h-6" />
-              <span className="text-[10px] font-medium mt-0.5">Profil</span>
-            </Link>
-            <Link href="/wishlist" className="hidden md:flex flex-col items-center justify-center w-12 h-12 text-navy hover:text-primary transition-colors relative">
-              <Heart className="w-6 h-6" />
-              <span className="text-[10px] font-medium mt-0.5">Favoris</span>
-            </Link>
-            <Link href="/cart" className="relative p-2 md:flex flex-col items-center justify-center md:w-12 md:h-12 text-navy hover:text-primary transition-colors group">
+            
+            <Link href="/wishlist" className="hidden sm:flex relative flex-col items-center justify-center p-2 text-muted-foreground hover:text-primary transition-colors">
               <div className="relative">
-                <ShoppingCart className="w-6 h-6" />
+                <Heart className="h-6 w-6 mb-1" />
+                {wishlistItems?.length > 0 && (
+                  <span className="absolute -top-1 -right-2 bg-secondary text-white text-[10px] font-bold h-4 min-w-4 px-1 rounded-full flex items-center justify-center border-2 border-card">
+                    {wishlistItems.length}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-semibold uppercase">Favoris</span>
+            </Link>
+
+            <Link href="/cart" className="relative flex flex-col items-center justify-center p-2 text-muted-foreground hover:text-primary transition-colors">
+              <div className="relative">
+                <ShoppingCart className="h-6 w-6 mb-1" />
                 {itemCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-secondary text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center border-2 border-white shadow-sm group-hover:scale-110 transition-transform">
+                  <span className="absolute -top-1 -right-2 bg-secondary text-white text-[10px] font-bold h-4 min-w-4 px-1 rounded-full flex items-center justify-center border-2 border-card">
                     {itemCount}
                   </span>
                 )}
               </div>
-              <span className="hidden md:block text-[10px] font-medium mt-0.5">Panier</span>
+              <span className="text-[10px] font-semibold uppercase hidden sm:inline-block">Panier</span>
             </Link>
           </div>
         </div>
 
-        {/* Desktop Navigation */}
-        <div className="hidden md:block border-t border-border">
-          <div className="container mx-auto px-4 flex items-center">
-            <div className="flex items-center bg-primary text-white px-4 py-3 font-semibold gap-2 min-w-[250px] cursor-pointer">
-              <Menu className="w-5 h-5" />
-              Toutes les catégories
-            </div>
-            <nav className="flex items-center gap-6 ml-6 font-medium text-sm text-navy">
-              <Link href="/" className="hover:text-primary transition-colors">Accueil</Link>
-              <Link href="/products?isNew=true" className="hover:text-primary transition-colors text-secondary">Nouveautés</Link>
-              <Link href="/products?hasDiscount=true" className="hover:text-primary transition-colors">Promotions</Link>
-              <Link href="/products?categoryId=1" className="hover:text-primary transition-colors">Outils de précision</Link>
-              <Link href="/products?categoryId=2" className="hover:text-primary transition-colors">Machines</Link>
+        {/* Nav Strip - Desktop */}
+        <div className="hidden md:flex h-12 bg-muted/30 border-t border-border">
+          <div className="container mx-auto px-6 flex items-center gap-8">
+            <Button variant="ghost" className="bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-none h-full px-6 font-bold tracking-tight uppercase text-xs flex items-center gap-2 transition-colors">
+              <Menu className="h-4 w-4" />
+              Toutes les Catégories
+            </Button>
+            <nav className="flex items-center gap-6">
+              {navLinks.map((link) => (
+                <Link key={link.href} href={link.href} className="text-sm font-semibold text-foreground/80 hover:text-primary transition-colors uppercase tracking-wider">
+                  {link.label}
+                </Link>
+              ))}
             </nav>
           </div>
         </div>
       </header>
 
+      {/* Search Bar - Mobile */}
+      <div className="md:hidden p-4 bg-card border-b border-border z-30 sticky top-20">
+        <form onSubmit={handleSearch} className="relative w-full flex items-center">
+          <Input
+            type="search"
+            placeholder="Rechercher..."
+            className="w-full h-10 pr-12 bg-muted border-border"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <Button type="submit" size="icon" className="absolute right-0 h-10 w-12 rounded-l-none bg-primary text-white">
+            <Search className="h-4 w-4" />
+          </Button>
+        </form>
+      </div>
+
       {/* Main Content */}
-      <main className="flex-1 w-full">
+      <main className="flex-1 pb-16 md:pb-0">
         {children}
       </main>
 
       {/* Footer */}
-      <footer className="bg-navy text-gray-300 py-12 pb-24 md:pb-12 mt-auto border-t-4 border-primary">
-        <div className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div>
-            <img src={logoImg} alt="Repaire Phone DZ" className="h-10 object-contain mb-4 brightness-0 invert" />
-            <p className="text-sm mb-4">L'équipement professionnel numéro 1 pour la réparation de téléphones en Algérie. Précision, qualité, rapidité.</p>
-            <div className="text-sm">
-              <p>📍 Alger, Algérie</p>
-              <p>📞 +213 555 00 00 00</p>
-              <p>✉️ contact@repairephonedz.com</p>
+      <footer className="bg-navy text-navy-foreground border-t-4 border-primary pb-20 md:pb-0">
+        <div className="container mx-auto px-4 py-12 lg:py-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+            <div>
+              <span className="font-extrabold text-2xl tracking-tight text-white mb-6 inline-block">
+                Repaire<span className="text-secondary">DZ</span>
+              </span>
+              <p className="text-navy-foreground/70 text-sm mb-6 leading-relaxed">
+                Le premier fournisseur d'outillage et de pièces détachées pour les professionnels de la réparation mobile en Algérie.
+              </p>
+              <div className="flex items-center gap-4">
+                <Button variant="ghost" size="icon" className="rounded-full bg-white/5 hover:bg-primary text-white">
+                  <Facebook className="h-5 w-5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="rounded-full bg-white/5 hover:bg-primary text-white">
+                  <Instagram className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-bold text-white mb-6 uppercase tracking-wider text-sm">Liens Rapides</h4>
+              <ul className="space-y-3">
+                <li><Link href="/products" className="text-sm text-navy-foreground/70 hover:text-secondary transition-colors">Tous les produits</Link></li>
+                <li><Link href="/categories" className="text-sm text-navy-foreground/70 hover:text-secondary transition-colors">Catégories</Link></li>
+                <li><Link href="/products?isNew=true" className="text-sm text-navy-foreground/70 hover:text-secondary transition-colors">Nouveautés</Link></li>
+                <li><Link href="/products?hasDiscount=true" className="text-sm text-navy-foreground/70 hover:text-secondary transition-colors">Promotions</Link></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-white mb-6 uppercase tracking-wider text-sm">Mon Compte</h4>
+              <ul className="space-y-3">
+                <li><Link href="/profile" className="text-sm text-navy-foreground/70 hover:text-secondary transition-colors">Mon profil</Link></li>
+                <li><Link href="/orders" className="text-sm text-navy-foreground/70 hover:text-secondary transition-colors">Mes commandes</Link></li>
+                <li><Link href="/wishlist" className="text-sm text-navy-foreground/70 hover:text-secondary transition-colors">Mes favoris</Link></li>
+                <li><Link href="/cart" className="text-sm text-navy-foreground/70 hover:text-secondary transition-colors">Panier</Link></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-white mb-6 uppercase tracking-wider text-sm">Contact</h4>
+              <ul className="space-y-4">
+                <li className="flex items-start gap-3">
+                  <Phone className="h-5 w-5 text-secondary shrink-0 mt-0.5" />
+                  <span className="text-sm text-navy-foreground/70">+213 (0) 555 123 456<br />Lun-Jeu 9h-18h</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Mail className="h-5 w-5 text-secondary shrink-0 mt-0.5" />
+                  <span className="text-sm text-navy-foreground/70">contact@repairephone.dz</span>
+                </li>
+              </ul>
             </div>
           </div>
-          <div>
-            <h3 className="text-white font-bold text-lg mb-4">Liens Rapides</h3>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/products" className="hover:text-white transition-colors">Tous les produits</Link></li>
-              <li><Link href="/categories" className="hover:text-white transition-colors">Catégories</Link></li>
-              <li><Link href="/orders" className="hover:text-white transition-colors">Suivi de commande</Link></li>
-              <li><Link href="/profile" className="hover:text-white transition-colors">Mon Compte</Link></li>
-            </ul>
+          <div className="border-t border-white/10 mt-12 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-navy-foreground/50">© 2026 Repaire Phone DZ. Tous droits réservés.</p>
           </div>
-          <div>
-            <h3 className="text-white font-bold text-lg mb-4">Information</h3>
-            <ul className="space-y-2 text-sm">
-              <li><a href="#" className="hover:text-white transition-colors">À propos</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Livraison (58 Wilayas)</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Conditions Générales</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Politique de retour</a></li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-white font-bold text-lg mb-4">Newsletter</h3>
-            <p className="text-sm mb-4">Recevez nos dernières offres et nouveautés pour les pros.</p>
-            <div className="flex">
-              <input type="email" placeholder="Votre email" className="px-3 py-2 w-full text-black rounded-l-md outline-none" />
-              <button className="bg-primary text-white px-4 py-2 rounded-r-md hover:bg-primary/90 font-medium">Ok</button>
-            </div>
-          </div>
-        </div>
-        <div className="container mx-auto px-4 mt-8 pt-8 border-t border-white/10 text-center text-sm">
-          &copy; {new Date().getFullYear()} Repaire Phone DZ. Tous droits réservés.
         </div>
       </footer>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-50 px-2 pb-safe">
-        <div className="flex justify-around items-center h-16">
-          {navItems.map((item) => {
-            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href))
-            const Icon = item.icon
-            
-            return (
-              <Link 
-                key={item.href} 
-                href={item.href}
-                className={cn(
-                  "flex flex-col items-center justify-center w-16 h-full relative",
-                  isActive ? "text-primary" : "text-gray-500 hover:text-navy"
-                )}
-              >
-                <div className="relative">
-                  <Icon className={cn("w-6 h-6 mb-1", isActive && "stroke-[2.5px]")} />
-                  {item.badge !== undefined && (
-                    <span className="absolute -top-1 -right-1 bg-secondary text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center border-2 border-white">
-                      {item.badge > 9 ? "9+" : item.badge}
-                    </span>
-                  )}
-                </div>
-                <span className={cn("text-[10px] font-medium leading-none", isActive && "font-bold")}>
-                  {item.label}
-                </span>
-                {isActive && (
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-primary rounded-b-full" />
-                )}
-              </Link>
-            )
-          })}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t border-border flex items-center justify-around z-50 px-2 pb-safe">
+        <Link href="/" className={`flex flex-col items-center justify-center w-16 h-full ${location === '/' ? 'text-primary' : 'text-muted-foreground'}`}>
+          <Home className={`h-5 w-5 mb-1 ${location === '/' ? 'fill-primary/20' : ''}`} />
+          <span className="text-[10px] font-semibold">Accueil</span>
+        </Link>
+        <Link href="/categories" className={`flex flex-col items-center justify-center w-16 h-full ${location === '/categories' ? 'text-primary' : 'text-muted-foreground'}`}>
+          <LayoutGrid className={`h-5 w-5 mb-1 ${location === '/categories' ? 'fill-primary/20' : ''}`} />
+          <span className="text-[10px] font-semibold">Catégories</span>
+        </Link>
+        <div className="flex flex-col items-center justify-center w-16 h-full text-muted-foreground" onClick={() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement;
+          if (searchInput) searchInput.focus();
+        }}>
+          <Search className="h-5 w-5 mb-1" />
+          <span className="text-[10px] font-semibold">Recherche</span>
         </div>
-      </nav>
+        <Link href="/wishlist" className={`flex flex-col items-center justify-center w-16 h-full relative ${location === '/wishlist' ? 'text-primary' : 'text-muted-foreground'}`}>
+          <Heart className={`h-5 w-5 mb-1 ${location === '/wishlist' ? 'fill-primary/20' : ''}`} />
+          {wishlistItems?.length > 0 && (
+            <span className="absolute top-1 right-3 bg-secondary text-white text-[9px] font-bold h-3.5 min-w-3.5 px-1 rounded-full flex items-center justify-center border border-card">
+              {wishlistItems.length}
+            </span>
+          )}
+          <span className="text-[10px] font-semibold">Favoris</span>
+        </Link>
+        <Link href="/cart" className={`flex flex-col items-center justify-center w-16 h-full relative ${location === '/cart' ? 'text-primary' : 'text-muted-foreground'}`}>
+          <ShoppingCart className={`h-5 w-5 mb-1 ${location === '/cart' ? 'fill-primary/20' : ''}`} />
+          {itemCount > 0 && (
+            <span className="absolute top-1 right-3 bg-secondary text-white text-[9px] font-bold h-3.5 min-w-3.5 px-1 rounded-full flex items-center justify-center border border-card">
+              {itemCount}
+            </span>
+          )}
+          <span className="text-[10px] font-semibold">Panier</span>
+        </Link>
+      </div>
+
+      {/* Mobile Drawer Overlay */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}>
+          <div className="absolute top-0 left-0 bottom-0 w-4/5 max-w-sm bg-card shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="h-20 flex items-center justify-between px-6 border-b border-border bg-muted/30">
+              <span className="font-extrabold text-xl tracking-tight text-primary">
+                Repaire<span className="text-secondary">DZ</span>
+              </span>
+              <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(false)}>
+                <X className="h-6 w-6" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
+              {navLinks.map((link) => (
+                <Link key={link.href} href={link.href} onClick={() => setIsMobileMenuOpen(false)}>
+                  <div className="p-4 rounded-lg hover:bg-muted font-semibold text-foreground/90 transition-colors">
+                    {link.label}
+                  </div>
+                </Link>
+              ))}
+              <div className="h-px bg-border my-4 mx-4" />
+              <Link href={isAuthenticated ? "/profile" : "/auth/login"} onClick={() => setIsMobileMenuOpen(false)}>
+                <div className="p-4 rounded-lg hover:bg-muted font-semibold text-foreground/90 flex items-center gap-3 transition-colors">
+                  <User className="h-5 w-5 text-muted-foreground" />
+                  {isAuthenticated ? "Mon Compte" : "Connexion / Inscription"}
+                </div>
+              </Link>
+            </div>
+            <div className="p-6 bg-navy text-navy-foreground text-sm">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <Phone className="h-4 w-4 text-secondary" />
+                  <span>+213 (0) 555 123 456</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Mail className="h-4 w-4 text-secondary" />
+                  <span>contact@repairephone.dz</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  )
+  );
 }

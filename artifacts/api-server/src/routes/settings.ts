@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
+import { eq } from "drizzle-orm";
 import { db, settingsTable } from "@workspace/db";
-import { requireAdmin } from "../lib/auth";
+import { requireAdminSession, requirePermission, logActivity, getIp } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 
@@ -27,15 +28,15 @@ router.get("/settings", async (_req, res): Promise<void> => {
   res.json(formatSettings(settings));
 });
 
-router.patch("/settings", requireAdmin, async (req, res): Promise<void> => {
+router.patch("/settings", requireAdminSession, requirePermission("manage_settings"), async (req, res): Promise<void> => {
   const settings = await getOrCreateSettings();
   const updates: Record<string, unknown> = {};
   const fields = ["storeName", "logoUrl", "faviconUrl", "phone", "email", "address", "facebook", "instagram", "whatsapp", "metaTitle", "metaDescription"];
   for (const f of fields) { if (req.body[f] !== undefined) updates[f] = req.body[f]; }
   if (req.body.shippingCost !== undefined) updates.shippingCost = String(req.body.shippingCost);
   if (req.body.freeShippingThreshold !== undefined) updates.freeShippingThreshold = req.body.freeShippingThreshold ? String(req.body.freeShippingThreshold) : null;
-  const { eq } = await import("drizzle-orm");
   const [s] = await db.update(settingsTable).set(updates).where(eq(settingsTable.id, settings.id)).returning();
+  await logActivity(req.adminUser!.id, req.adminUser!.fullName, "update_settings", "settings", settings.id, null, updates, getIp(req));
   res.json(formatSettings(s || settings));
 });
 

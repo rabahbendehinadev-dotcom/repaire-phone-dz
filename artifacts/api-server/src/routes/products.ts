@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, ilike, desc, asc, sql } from "drizzle-orm";
 import { db, productsTable, categoriesTable, brandsTable } from "@workspace/db";
-import { requireAdmin } from "../lib/auth";
+import { requireAdminSession, requirePermission, logActivity, getIp } from "../lib/admin-auth";
 import { slugify } from "../lib/slug";
 
 const router: IRouter = Router();
@@ -109,7 +109,7 @@ router.get("/products", async (req, res): Promise<void> => {
   res.json({ products: result, total: count, page: pageNum, totalPages: Math.ceil(count / limitNum) });
 });
 
-router.post("/products", requireAdmin, async (req, res): Promise<void> => {
+router.post("/products", requireAdminSession, requirePermission("manage_products"), async (req, res): Promise<void> => {
   const { name, description, price, comparePrice, stock, sku, barcode, isNew, isFeatured, hasDiscount, specifications, shippingInfo, warrantyInfo, images, categoryId, brandId } = req.body;
   if (!name || price == null) { res.status(400).json({ error: "name et price requis" }); return; }
   const slug = slugify(name);
@@ -147,7 +147,7 @@ router.get("/products/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.patch("/products/:id", requireAdmin, async (req, res): Promise<void> => {
+router.patch("/products/:id", requireAdminSession, requirePermission("manage_products"), async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const updates: Record<string, unknown> = {};
   const fields = ["name", "description", "price", "comparePrice", "stock", "sku", "isNew", "isFeatured", "hasDiscount", "specifications", "shippingInfo", "warrantyInfo", "images", "categoryId", "brandId"];
@@ -164,7 +164,7 @@ router.patch("/products/:id", requireAdmin, async (req, res): Promise<void> => {
   res.json(formatted);
 });
 
-router.delete("/products/:id", requireAdmin, async (req, res): Promise<void> => {
+router.delete("/products/:id", requireAdminSession, requirePermission("manage_products"), async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   await db.delete(productsTable).where(eq(productsTable.id, id));
   res.json({ message: "Produit supprimé" });

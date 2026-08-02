@@ -1,398 +1,350 @@
-import { Link, useLocation } from "wouter";
-import { useEffect, useState, useMemo } from "react";
-import { 
-  useListProducts, 
-  useListCategories, 
-  useListBrands,
-  type ListProductsSortBy
-} from "@workspace/api-client-react";
-import { formatPrice } from "@/lib/utils";
-import { useCart } from "@/hooks/use-cart-store";
-import { 
-  Filter, 
-  ChevronDown, 
-  X, 
-  ShoppingCart, 
-  Star,
-  Search,
-  LayoutGrid,
-  List as ListIcon
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
+import { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
+import { useListProducts, useListCategories, useListBrands } from '@workspace/api-client-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { SlidersHorizontal, ChevronRight, Star, ShoppingCart, Heart, Filter, X } from 'lucide-react';
+import { useCart } from '@/hooks/use-cart-store';
+import { useWishlist } from '@/hooks/use-wishlist';
+import { toast } from 'sonner';
+
+// Helper to parse query string
+const useQueryParams = () => {
+  const [location] = useLocation();
+  const search = window.location.search;
+  return new URLSearchParams(search);
+};
 
 export default function Products() {
-  const [location] = useLocation();
-  const searchParams = new URLSearchParams(window.location.search);
+  const query = useQueryParams();
+  const [location, setLocation] = useLocation();
   
-  // State for filters
-  const [categoryId, setCategoryId] = useState<number | null>(searchParams.get('categoryId') ? Number(searchParams.get('categoryId')) : null);
-  const [brandId, setBrandId] = useState<number | null>(searchParams.get('brandId') ? Number(searchParams.get('brandId')) : null);
-  const [search, setSearch] = useState(searchParams.get('search') || "");
-  const [searchInput, setSearchInput] = useState(search);
-  const [sortBy, setSortBy] = useState<ListProductsSortBy>(searchParams.get('sortBy') as ListProductsSortBy || "popular");
-  const [page, setPage] = useState(1);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-
-  // Hardcode filters for specific params that might be set from home page
-  const isNew = searchParams.get('isNew') === 'true' ? true : null;
-  const hasDiscount = searchParams.get('hasDiscount') === 'true' ? true : null;
-  const isFeatured = searchParams.get('isFeatured') === 'true' ? true : null;
-
-  const { data: productsData, isLoading: loadingProducts } = useListProducts({
-    categoryId: categoryId || undefined,
-    brandId: brandId || undefined,
-    search: search || undefined,
-    sortBy: sortBy || undefined,
-    isNew: isNew || undefined,
-    hasDiscount: hasDiscount || undefined,
-    isFeatured: isFeatured || undefined,
-    page,
-    limit: 12
-  }, {
-    query: {
-      queryKey: ["products", page, categoryId, brandId, search, sortBy, isNew, hasDiscount, isFeatured],
-    }
-  });
+  // Filters state
+  const [search, setSearch] = useState(query.get('search') || '');
+  const [categoryId, setCategoryId] = useState<number | null>(query.get('categoryId') ? Number(query.get('categoryId')) : null);
+  const [brandId, setBrandId] = useState<number | null>(query.get('brandId') ? Number(query.get('brandId')) : null);
+  const [isNew, setIsNew] = useState<boolean>(query.get('isNew') === 'true');
+  const [hasDiscount, setHasDiscount] = useState<boolean>(query.get('hasDiscount') === 'true');
+  const [inStock, setInStock] = useState<boolean>(query.get('inStock') === 'true');
+  const [sortBy, setSortBy] = useState<string>(query.get('sortBy') || 'newest');
+  
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   const { data: categories } = useListCategories();
   const { data: brands } = useListBrands();
-  const { addToCart } = useCart();
+  
+  const { data: productsData, isLoading } = useListProducts({
+    search: search || null,
+    categoryId,
+    brandId,
+    isNew: isNew ? true : null,
+    hasDiscount: hasDiscount ? true : null,
+    inStock: inStock ? true : null,
+    sortBy: sortBy as any,
+    limit: 24,
+  }, { query: { queryKey: ['products', search, categoryId, brandId, isNew, hasDiscount, inStock, sortBy] } });
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSearch(searchInput);
-    setPage(1);
+  const updateFilters = (key: string, value: string | null) => {
+    const params = new URLSearchParams(window.location.search);
+    if (value) params.set(key, value);
+    else params.delete(key);
+    setLocation(`/products?${params.toString()}`);
   };
 
-  const clearFilters = () => {
-    setCategoryId(null);
-    setBrandId(null);
-    setSearch("");
-    setSearchInput("");
-    setPage(1);
-    // Ideally update URL as well, omitting for brevity
+  const handleApplyMobileFilters = () => {
+    setIsMobileFiltersOpen(false);
   };
 
-  const FilterSidebar = () => (
-    <div className="flex flex-col gap-6 p-1">
-      <div className="flex items-center justify-between">
-        <h3 className="font-bold text-navy text-lg">Filtres</h3>
-        {(categoryId || brandId || search) && (
-          <button onClick={clearFilters} className="text-xs text-red-500 font-medium hover:underline">
-            Effacer
-          </button>
-        )}
-      </div>
-
-      {/* Categories */}
+  const FiltersContent = () => (
+    <div className="space-y-8">
       <div>
-        <h4 className="font-semibold text-sm mb-3">Catégories</h4>
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input 
-              type="radio" 
-              name="category" 
-              checked={categoryId === null} 
-              onChange={() => { setCategoryId(null); setPage(1); }}
-              className="accent-primary"
+        <h4 className="font-bold text-sm mb-4 uppercase tracking-wider text-muted-foreground">Catégories</h4>
+        <div className="space-y-2 max-h-60 overflow-y-auto scrollbar-hide pr-2">
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="cat-all" 
+              checked={categoryId === null}
+              onCheckedChange={() => { setCategoryId(null); updateFilters('categoryId', null); }}
             />
-            <span className="text-sm">Toutes</span>
-          </label>
-          {categories?.map(cat => (
-            <label key={cat.id} className="flex items-center gap-2 cursor-pointer">
-              <input 
-                type="radio" 
-                name="category" 
-                checked={categoryId === cat.id} 
-                onChange={() => { setCategoryId(cat.id); setPage(1); }}
-                className="accent-primary"
+            <Label htmlFor="cat-all" className="text-sm font-medium cursor-pointer">Toutes les catégories</Label>
+          </div>
+          {categories?.map((cat) => (
+            <div key={cat.id} className="flex items-center space-x-2">
+              <Checkbox 
+                id={`cat-${cat.id}`} 
+                checked={categoryId === cat.id}
+                onCheckedChange={() => { setCategoryId(cat.id); updateFilters('categoryId', cat.id.toString()); }}
               />
-              <span className="text-sm">{cat.name}</span>
-            </label>
+              <Label htmlFor={`cat-${cat.id}`} className="text-sm cursor-pointer">{cat.name}</Label>
+            </div>
           ))}
         </div>
       </div>
 
-      {/* Brands */}
       <div>
-        <h4 className="font-semibold text-sm mb-3">Marques</h4>
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input 
-              type="radio" 
-              name="brand" 
-              checked={brandId === null} 
-              onChange={() => { setBrandId(null); setPage(1); }}
-              className="accent-primary"
+        <h4 className="font-bold text-sm mb-4 uppercase tracking-wider text-muted-foreground">Marques</h4>
+        <div className="space-y-2 max-h-60 overflow-y-auto scrollbar-hide pr-2">
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="brand-all" 
+              checked={brandId === null}
+              onCheckedChange={() => { setBrandId(null); updateFilters('brandId', null); }}
             />
-            <span className="text-sm">Toutes</span>
-          </label>
-          {brands?.map(brand => (
-            <label key={brand.id} className="flex items-center gap-2 cursor-pointer">
-              <input 
-                type="radio" 
-                name="brand" 
-                checked={brandId === brand.id} 
-                onChange={() => { setBrandId(brand.id); setPage(1); }}
-                className="accent-primary"
+            <Label htmlFor="brand-all" className="text-sm font-medium cursor-pointer">Toutes les marques</Label>
+          </div>
+          {brands?.map((brand) => (
+            <div key={brand.id} className="flex items-center space-x-2">
+              <Checkbox 
+                id={`brand-${brand.id}`} 
+                checked={brandId === brand.id}
+                onCheckedChange={() => { setBrandId(brand.id); updateFilters('brandId', brand.id.toString()); }}
               />
-              <span className="text-sm">{brand.name}</span>
-            </label>
+              <Label htmlFor={`brand-${brand.id}`} className="text-sm cursor-pointer">{brand.name}</Label>
+            </div>
           ))}
+        </div>
+      </div>
+
+      <div>
+        <h4 className="font-bold text-sm mb-4 uppercase tracking-wider text-muted-foreground">État & Dispo</h4>
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="filter-new" 
+              checked={isNew}
+              onCheckedChange={(c) => { setIsNew(!!c); updateFilters('isNew', c ? 'true' : null); }}
+            />
+            <Label htmlFor="filter-new" className="text-sm cursor-pointer">Nouveautés uniquement</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="filter-discount" 
+              checked={hasDiscount}
+              onCheckedChange={(c) => { setHasDiscount(!!c); updateFilters('hasDiscount', c ? 'true' : null); }}
+            />
+            <Label htmlFor="filter-discount" className="text-sm cursor-pointer">En promotion</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="filter-stock" 
+              checked={inStock}
+              onCheckedChange={(c) => { setInStock(!!c); updateFilters('inStock', c ? 'true' : null); }}
+            />
+            <Label htmlFor="filter-stock" className="text-sm cursor-pointer">En stock uniquement</Label>
+          </div>
         </div>
       </div>
     </div>
   );
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Header & Search */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-black text-navy">
-            {isNew ? "Nouveautés" : hasDiscount ? "Promotions" : "Tous les produits"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {productsData?.total || 0} produits trouvés
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <form onSubmit={handleSearch} className="relative flex-1 md:w-64">
-            <input 
-              type="text" 
-              value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
-              placeholder="Chercher..." 
-              className="w-full h-10 pl-3 pr-10 rounded-md border border-input text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-            <button type="submit" className="absolute right-0 top-0 h-10 w-10 flex items-center justify-center text-muted-foreground hover:text-primary">
-              <Search className="w-4 h-4" />
-            </button>
-          </form>
-
-          {/* Desktop View Toggles */}
-          <div className="hidden md:flex border border-input rounded-md overflow-hidden bg-white">
-            <button 
-              onClick={() => setViewMode("grid")} 
-              className={`p-2 ${viewMode === "grid" ? "bg-gray-100 text-primary" : "text-gray-400 hover:text-navy"}`}
-            >
-              <LayoutGrid className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={() => setViewMode("list")} 
-              className={`p-2 border-l border-input ${viewMode === "list" ? "bg-gray-100 text-primary" : "text-gray-400 hover:text-navy"}`}
-            >
-              <ListIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+    <div className="container mx-auto px-4 py-6 md:py-8">
+      {/* Page Header */}
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight mb-2">Tous les Produits</h1>
+        <p className="text-muted-foreground">L'équipement professionnel de la réparation mobile</p>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Desktop Sidebar */}
-        <aside className="hidden lg:block w-64 shrink-0">
-          <div className="bg-white rounded-xl border border-border p-5 sticky top-24">
-            <FilterSidebar />
+      <div className="flex flex-col md:flex-row gap-8">
+        {/* Desktop Sidebar Filters */}
+        <aside className="hidden md:block w-64 shrink-0">
+          <div className="sticky top-24">
+            <FiltersContent />
           </div>
         </aside>
 
-        {/* Mobile Filter & Sort */}
-        <div className="lg:hidden flex items-center gap-3 sticky top-16 z-30 bg-gray-50 py-2 -mx-4 px-4 border-b border-border shadow-sm">
-          <Drawer open={isMobileFilterOpen} onOpenChange={setIsMobileFilterOpen}>
-            <DrawerTrigger asChild>
-              <Button variant="outline" className="flex-1 bg-white">
-                <Filter className="w-4 h-4 mr-2" />
-                Filtres {(categoryId || brandId) && <Badge className="ml-2 w-5 h-5 p-0 flex items-center justify-center">1</Badge>}
-              </Button>
-            </DrawerTrigger>
-            <DrawerContent className="max-h-[85vh]">
-              <DrawerHeader className="border-b">
-                <DrawerTitle>Filtres</DrawerTitle>
-              </DrawerHeader>
-              <div className="p-4 overflow-y-auto">
-                <FilterSidebar />
-              </div>
-              <div className="p-4 border-t mt-auto">
-                <Button className="w-full" onClick={() => setIsMobileFilterOpen(false)}>Appliquer</Button>
-              </div>
-            </DrawerContent>
-          </Drawer>
-
-          <select 
-            className="flex-1 h-11 rounded-md border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            value={sortBy || ""}
-            onChange={(e) => setSortBy(e.target.value as ListProductsSortBy)}
-          >
-            <option value="popular">Populaires</option>
-            <option value="newest">Plus récents</option>
-            <option value="price_asc">Prix croissant</option>
-            <option value="price_desc">Prix décroissant</option>
-          </select>
-        </div>
-
         {/* Main Content */}
-        <div className="flex-1">
-          {/* Desktop Sort */}
-          <div className="hidden lg:flex justify-end mb-6">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Trier par:</span>
-              <select 
-                className="h-9 rounded-md border border-input bg-white px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                value={sortBy || ""}
-                onChange={(e) => setSortBy(e.target.value as ListProductsSortBy)}
+        <div className="flex-1 min-w-0">
+          {/* Controls Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-card p-2 md:p-3 rounded-xl border border-border shadow-sm">
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <Button 
+                variant="outline" 
+                className="md:hidden flex-1 border-primary/20 text-primary bg-primary/5"
+                onClick={() => setIsMobileFiltersOpen(true)}
               >
-                <option value="popular">Populaires</option>
-                <option value="newest">Plus récents</option>
-                <option value="price_asc">Prix croissant</option>
-                <option value="price_desc">Prix décroissant</option>
-              </select>
+                <SlidersHorizontal className="mr-2 h-4 w-4" />
+                Filtres
+              </Button>
+              <form className="relative flex-1 md:w-64" onSubmit={(e) => {
+                e.preventDefault();
+                updateFilters('search', search);
+              }}>
+                <Input
+                  type="search"
+                  placeholder="Rechercher..."
+                  className="w-full bg-muted/50 border-transparent focus-visible:border-primary"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </form>
+            </div>
+            
+            <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+              <span className="text-sm text-muted-foreground font-medium">
+                {productsData?.total || 0} produits
+              </span>
+              <Select value={sortBy} onValueChange={(val) => { setSortBy(val); updateFilters('sortBy', val); }}>
+                <SelectTrigger className="w-[160px] bg-muted/50 border-transparent">
+                  <SelectValue placeholder="Trier par" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Plus récents</SelectItem>
+                  <SelectItem value="price_asc">Prix croissant</SelectItem>
+                  <SelectItem value="price_desc">Prix décroissant</SelectItem>
+                  <SelectItem value="popular">Popularité</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* Product Grid/List */}
-          {loadingProducts ? (
-            <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-2 md:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"}`}>
-              {Array(8).fill(0).map((_, i) => (
-                <Skeleton key={i} className={`rounded-xl ${viewMode === "grid" ? "h-[300px]" : "h-32"}`} />
-              ))}
-            </div>
-          ) : productsData?.products.length === 0 ? (
-            <div className="bg-white rounded-xl border border-border p-12 text-center flex flex-col items-center">
-              <div className="w-16 h-16 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center mb-4">
-                <Search className="w-8 h-8" />
-              </div>
-              <h3 className="text-lg font-bold text-navy mb-2">Aucun produit trouvé</h3>
-              <p className="text-gray-500 max-w-sm mx-auto mb-6">Nous n'avons trouvé aucun produit correspondant à vos critères de recherche.</p>
-              <Button variant="outline" onClick={clearFilters}>Effacer les filtres</Button>
-            </div>
-          ) : (
-            <div className={`grid gap-3 md:gap-4 ${viewMode === "grid" ? "grid-cols-2 md:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"}`}>
-              {productsData?.products.map((product) => (
-                <div key={product.id} className={`group relative bg-white border border-border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 ${viewMode === "list" ? "flex flex-row" : "flex flex-col hover:-translate-y-1"}`}>
-                  
-                  {/* Badges */}
-                  <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
-                    {product.hasDiscount && product.discountPercent && (
-                      <Badge className="bg-secondary text-white border-none text-[10px] uppercase font-bold py-0.5">
-                        -{product.discountPercent}%
-                      </Badge>
-                    )}
-                    {product.isNew && (
-                      <Badge className="bg-navy text-white border-none text-[10px] uppercase font-bold py-0.5">
-                        Nouveau
-                      </Badge>
-                    )}
-                  </div>
-                  
-                  {/* Image */}
-                  <Link href={`/products/${product.id}`} className={`block relative bg-gray-50 overflow-hidden shrink-0 ${viewMode === "list" ? "w-32 md:w-48 h-full" : "aspect-square w-full"}`}>
-                    <img 
-                      src={product.images?.[0] || "https://placehold.co/400x400/1a56db/white?text=Produit"} 
-                      alt={product.name}
-                      className="w-full h-full object-cover p-4 transition-transform duration-300 group-hover:scale-105"
-                    />
-                  </Link>
-                  
-                  {/* Content */}
-                  <div className={`p-4 flex flex-col justify-between flex-1 ${viewMode === "list" ? "" : "gap-2"}`}>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-gray-500 truncate">{product.categoryName || "Général"}</span>
-                        <div className="flex items-center gap-1 text-warning">
-                          <Star className="w-3 h-3 fill-current" />
-                          <span className="text-xs font-medium text-gray-600">{product.averageRating?.toFixed(1) || "5.0"}</span>
-                        </div>
-                      </div>
-                      
-                      <Link href={`/products/${product.id}`} className="block">
-                        <h3 className={`text-sm font-bold text-navy line-clamp-2 leading-tight group-hover:text-primary transition-colors ${viewMode === "list" ? "md:text-base" : ""}`}>
-                          {product.name}
-                        </h3>
-                      </Link>
-                      
-                      {viewMode === "list" && (
-                        <p className="hidden md:block text-sm text-gray-500 mt-2 line-clamp-2">
-                          Description complète non disponible. Veuillez cliquer sur le produit pour plus de détails.
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div className="mt-4 flex items-end justify-between">
-                      <div>
-                        <div className="text-base md:text-lg font-black text-primary">{formatPrice(product.price)}</div>
-                        {product.comparePrice && (
-                          <div className="text-xs md:text-sm text-gray-400 line-through">{formatPrice(product.comparePrice)}</div>
-                        )}
-                      </div>
-                      
-                      <Button 
-                        size={viewMode === "list" ? "default" : "icon"} 
-                        className={`rounded-full shadow-sm shrink-0 transition-transform ${viewMode === "list" ? "px-4" : "w-9 h-9 hover:scale-105 active:scale-95"}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          addToCart(product.id, 1);
-                        }}
-                      >
-                        <ShoppingCart className="w-4 h-4" />
-                        {viewMode === "list" && <span className="ml-2 hidden md:inline">Ajouter</span>}
-                      </Button>
-                    </div>
-                  </div>
+          {/* Product Grid */}
+          {isLoading ? (
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
+              {Array(12).fill(0).map((_, i) => (
+                <div key={i} className="space-y-3">
+                  <Skeleton className="aspect-square rounded-xl" />
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-4 w-1/3" />
                 </div>
               ))}
             </div>
-          )}
-
-          {/* Pagination */}
-          {productsData && productsData.totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-10">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                disabled={page === 1}
-                onClick={() => setPage(p => p - 1)}
-              >
-                Précédent
-              </Button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, productsData.totalPages) }).map((_, i) => {
-                  // Logic to show pages around current page could be complex, keeping simple for demo
-                  let pageNum = i + 1;
-                  if (productsData.totalPages > 5 && page > 3) {
-                    pageNum = page - 2 + i;
-                  }
-                  if (pageNum > productsData.totalPages) return null;
-                  
-                  return (
-                    <Button 
-                      key={pageNum}
-                      variant={page === pageNum ? "default" : "ghost"}
-                      size="sm"
-                      className={`w-8 h-8 p-0 ${page === pageNum ? "bg-navy" : ""}`}
-                      onClick={() => setPage(pageNum)}
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                disabled={page === productsData.totalPages}
-                onClick={() => setPage(p => p + 1)}
-              >
-                Suivant
-              </Button>
+          ) : productsData?.products.length === 0 ? (
+            <div className="text-center py-20 bg-muted/30 rounded-2xl border border-border border-dashed">
+              <Filter className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-bold text-foreground mb-2">Aucun produit trouvé</h3>
+              <p className="text-muted-foreground mb-6">Essayez de modifier vos filtres de recherche.</p>
+              <Button onClick={() => setLocation('/products')}>Réinitialiser les filtres</Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
+              {productsData?.products.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* Mobile Filters Drawer */}
+      {isMobileFiltersOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-background flex flex-col h-[100dvh]">
+          <div className="h-14 flex items-center justify-between px-4 border-b border-border bg-card shrink-0">
+            <h3 className="font-bold text-lg">Filtres</h3>
+            <Button variant="ghost" size="icon" onClick={() => setIsMobileFiltersOpen(false)}>
+              <X className="h-6 w-6" />
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 bg-muted/10">
+            <FiltersContent />
+          </div>
+          <div className="p-4 bg-card border-t border-border shrink-0 flex gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => {
+              setCategoryId(null); setBrandId(null); setIsNew(false); setHasDiscount(false); setInStock(false);
+              setLocation('/products');
+              setIsMobileFiltersOpen(false);
+            }}>
+              Réinitialiser
+            </Button>
+            <Button className="flex-1 bg-primary" onClick={handleApplyMobileFilters}>
+              Appliquer
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Reusing ProductCard from home.tsx (can move to components/ui/product-card.tsx in real app)
+function ProductCard({ product }: { product: any }) {
+  const { addToCart } = useCart();
+  const { toggleWishlist, isInWishlist } = useWishlist();
+  const [location, setLocation] = useLocation();
+  
+  const inWishlist = isInWishlist(product.id);
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToCart(product.id, 1);
+    toast.success(`${product.name} ajouté au panier`);
+  };
+
+  const handleToggleWishlist = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleWishlist(product.id);
+  };
+
+  return (
+    <div onClick={() => setLocation(`/products/${product.id}`)} className="cursor-pointer">
+      <Card className="group h-full flex flex-col overflow-hidden border-border hover:border-primary/50 hover:shadow-lg transition-all duration-300 bg-card rounded-xl">
+        <div className="relative aspect-square bg-muted/30 p-4 flex items-center justify-center overflow-hidden">
+          {product.hasDiscount && product.discountPercent && (
+            <div className="absolute top-2 left-2 bg-secondary text-white text-xs font-extrabold px-1.5 py-0.5 rounded z-10 shadow-sm">
+              -{product.discountPercent}%
+            </div>
+          )}
+          {product.isNew && !product.hasDiscount && (
+            <div className="absolute top-2 left-2 bg-primary text-white text-xs font-extrabold px-1.5 py-0.5 rounded z-10 shadow-sm">
+              Nouveau
+            </div>
+          )}
+          <button 
+            onClick={handleToggleWishlist}
+            className={`absolute top-2 right-2 z-10 p-1.5 rounded-full transition-colors ${inWishlist ? 'bg-secondary/10 text-secondary' : 'bg-white/80 text-muted-foreground hover:bg-white hover:text-foreground shadow-sm'}`}
+          >
+            <Heart className={`h-4 w-4 ${inWishlist ? 'fill-secondary' : ''}`} />
+          </button>
+          
+          <img 
+            src={product.images?.[0] || 'https://placehold.co/400x400/f8fafc/1e3a5f?text=Produit'} 
+            alt={product.name}
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+          />
+        </div>
+        <CardContent className="p-3 md:p-4 flex-1 flex flex-col gap-1.5">
+          <div className="text-[10px] md:text-xs text-muted-foreground font-medium">{product.brandName || 'Générique'}</div>
+          <h4 className="font-bold text-xs md:text-sm leading-tight text-foreground line-clamp-2 flex-1 group-hover:text-primary transition-colors">
+            {product.name}
+          </h4>
+          
+          <div className="flex items-center gap-1 my-0.5">
+            <div className="flex text-yellow-400">
+              {Array(5).fill(0).map((_, i) => (
+                <Star key={i} className={`h-2.5 w-2.5 md:h-3 md:w-3 ${i < Math.floor(product.averageRating || 0) ? 'fill-current' : 'text-muted-foreground/30'}`} />
+              ))}
+            </div>
+            <span className="text-[9px] md:text-[10px] text-muted-foreground">({product.reviewCount || 0})</span>
+          </div>
+
+          <div className="flex items-end justify-between mt-1">
+            <div>
+              <div className="font-extrabold text-sm md:text-lg text-primary tracking-tight">
+                {product.price.toLocaleString('fr-DZ')} <span className="text-[10px] md:text-xs font-normal">DA</span>
+              </div>
+              {product.comparePrice && (
+                <div className="text-[10px] md:text-xs text-muted-foreground line-through font-medium">
+                  {product.comparePrice.toLocaleString('fr-DZ')} DA
+                </div>
+              )}
+            </div>
+            <Button 
+              size="icon" 
+              className="h-7 w-7 md:h-9 md:w-9 rounded-full bg-secondary hover:bg-secondary/90 text-white shadow-md shadow-secondary/20 transition-transform active:scale-95 shrink-0"
+              onClick={handleAddToCart}
+            >
+              <ShoppingCart className="h-3 w-3 md:h-4 md:w-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

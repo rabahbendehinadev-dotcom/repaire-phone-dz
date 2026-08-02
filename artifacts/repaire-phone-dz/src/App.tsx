@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
+import { Toaster as SonnerToaster } from 'sonner';
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
-import { AuthProvider, useAuth } from '@/hooks/use-auth';
+import { AuthProvider } from '@/hooks/use-auth';
+import { AdminAuthProvider } from '@/hooks/use-admin-auth';
 import { CartProvider } from '@/hooks/use-cart-store';
 import { WishlistProvider } from '@/hooks/use-wishlist';
 import { MainLayout } from '@/components/layout/main-layout';
@@ -17,68 +19,86 @@ import Checkout from '@/pages/checkout';
 import Wishlist from '@/pages/wishlist';
 import Orders from '@/pages/orders';
 import OrderDetail from '@/pages/order-detail';
-import AdminDashboard from '@/pages/admin/dashboard';
-import AdminProducts from '@/pages/admin/products';
-import AdminOrders from '@/pages/admin/orders';
 import Profile from '@/pages/profile';
 import Login from '@/pages/auth/login';
 import Register from '@/pages/auth/register';
+
+import AdminLogin from '@/pages/admin/login';
+import AdminDashboard from '@/pages/admin/dashboard';
+import AdminProducts from '@/pages/admin/products';
+import AdminOrders from '@/pages/admin/orders';
+import AdminCategories from '@/pages/admin/categories';
+import AdminBrands from '@/pages/admin/brands';
+import AdminCoupons from '@/pages/admin/coupons';
+import AdminBanners from '@/pages/admin/banners';
+import AdminCustomers from '@/pages/admin/customers';
+import AdminUsers from '@/pages/admin/users';
+import AdminActivity from '@/pages/admin/activity';
+import AdminSettings from '@/pages/admin/settings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000,
     },
   },
 });
 
-function AdminRoute({ component: Component }: { component: React.ComponentType }) {
-  const { user, isLoading } = useAuth();
-  const [, setLocation] = useLocation();
-
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center">Chargement...</div>;
-
-  if (!user || user.role !== 'admin') {
-    setLocation('/auth/login');
-    return null;
-  }
-
-  return <Component />;
-}
-
 function MainRoutes() {
   return (
-    <MainLayout>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/products" component={Products} />
-        <Route path="/products/:id" component={ProductDetail} />
-        <Route path="/categories" component={Categories} />
-        <Route path="/cart" component={Cart} />
-        <Route path="/checkout" component={Checkout} />
-        <Route path="/wishlist" component={Wishlist} />
-        <Route path="/orders" component={Orders} />
-        <Route path="/orders/:id" component={OrderDetail} />
-        <Route path="/profile" component={Profile} />
-        <Route path="/auth/login" component={Login} />
-        <Route path="/auth/register" component={Register} />
-        <Route component={NotFound} />
-      </Switch>
-    </MainLayout>
+    <AuthProvider>
+      <CartProvider>
+        <WishlistProvider>
+          <MainLayout>
+            <Switch>
+              <Route path="/" component={Home} />
+              <Route path="/products" component={Products} />
+              <Route path="/products/:id" component={ProductDetail} />
+              <Route path="/categories" component={Categories} />
+              <Route path="/cart" component={Cart} />
+              <Route path="/checkout" component={Checkout} />
+              <Route path="/wishlist" component={Wishlist} />
+              <Route path="/orders" component={Orders} />
+              <Route path="/orders/:id" component={OrderDetail} />
+              <Route path="/profile" component={Profile} />
+              <Route path="/auth/login" component={Login} />
+              <Route path="/auth/register" component={Register} />
+              <Route component={NotFound} />
+            </Switch>
+          </MainLayout>
+        </WishlistProvider>
+      </CartProvider>
+    </AuthProvider>
   );
 }
 
 function AdminRoutes() {
   return (
-    <AdminLayout>
+    <AdminAuthProvider>
       <Switch>
-        <Route path="/admin" component={AdminDashboard} />
-        <Route path="/admin/products" component={AdminProducts} />
-        <Route path="/admin/orders" component={AdminOrders} />
-        <Route component={NotFound} />
+        <Route path="/admin/login" component={AdminLogin} />
+        <Route path="/admin/*?">
+          <AdminLayout>
+            <Switch>
+              <Route path="/admin" component={AdminDashboard} />
+              <Route path="/admin/products" component={AdminProducts} />
+              <Route path="/admin/orders" component={AdminOrders} />
+              <Route path="/admin/categories" component={AdminCategories} />
+              <Route path="/admin/brands" component={AdminBrands} />
+              <Route path="/admin/coupons" component={AdminCoupons} />
+              <Route path="/admin/banners" component={AdminBanners} />
+              <Route path="/admin/customers" component={AdminCustomers} />
+              <Route path="/admin/users" component={AdminUsers} />
+              <Route path="/admin/activity" component={AdminActivity} />
+              <Route path="/admin/settings" component={AdminSettings} />
+              <Route component={NotFound} />
+            </Switch>
+          </AdminLayout>
+        </Route>
       </Switch>
-    </AdminLayout>
+    </AdminAuthProvider>
   );
 }
 
@@ -105,14 +125,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-        <AuthProvider>
-          <CartProvider>
-            <WishlistProvider>
-              <AppRouter />
-              <Toaster />
-            </WishlistProvider>
-          </CartProvider>
-        </AuthProvider>
+        <AppRouter />
+        <Toaster />
+        <SonnerToaster position="top-right" richColors />
       </WouterRouter>
     </QueryClientProvider>
   );

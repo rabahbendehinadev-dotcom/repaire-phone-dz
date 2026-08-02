@@ -12,6 +12,9 @@ import couponsRouter from "./coupons";
 import bannersRouter from "./banners";
 import settingsRouter from "./settings";
 import adminRouter from "./admin";
+import adminAuthRouter from "./admin-auth";
+import adminUsersRouter from "./admin-users";
+import adminActivityRouter from "./admin-activity";
 
 const router: IRouter = Router();
 
@@ -28,5 +31,8 @@ router.use(couponsRouter);
 router.use(bannersRouter);
 router.use(settingsRouter);
 router.use(adminRouter);
+router.use(adminAuthRouter);
+router.use(adminUsersRouter);
+router.use(adminActivityRouter);
 
 export default router;

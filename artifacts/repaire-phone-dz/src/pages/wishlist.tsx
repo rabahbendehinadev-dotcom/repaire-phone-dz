@@ -1,100 +1,92 @@
-import { Link } from "wouter";
-import { useWishlist } from "@/hooks/use-wishlist";
-import { useCart } from "@/hooks/use-cart-store";
-import { formatPrice } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Heart, ShoppingCart, Trash2, ArrowRight } from "lucide-react";
+import { useWishlist } from '@/hooks/use-wishlist';
+import { useGetProduct } from '@workspace/api-client-react';
+import { Link } from 'wouter';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { ShoppingCart, Heart, Trash2 } from 'lucide-react';
+import { useCart } from '@/hooks/use-cart-store';
+import { toast } from 'sonner';
 
 export default function Wishlist() {
   const { items, isLoading, toggleWishlist } = useWishlist();
-  const { addToCart } = useCart();
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-black text-navy mb-8">Mes Favoris</h1>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-64 rounded-xl" />)}
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="p-20 text-center">Chargement...</div>;
 
   if (!items || items.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center flex flex-col items-center">
-        <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center mb-6">
-          <Heart className="w-12 h-12 text-red-300" />
+      <div className="container mx-auto px-4 py-20 max-w-2xl text-center">
+        <div className="w-32 h-32 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-8">
+          <Heart className="h-16 w-16 text-muted-foreground/50" />
         </div>
-        <h1 className="text-3xl font-black text-navy mb-4">Aucun favori</h1>
-        <p className="text-gray-500 mb-8 max-w-md">
-          Vous n'avez pas encore ajouté de produits à vos favoris.
-        </p>
-        <Button asChild size="lg" className="rounded-full px-8">
-          <Link href="/products">Parcourir la boutique</Link>
+        <h2 className="text-2xl md:text-3xl font-extrabold mb-4 tracking-tight">Vos favoris sont vides</h2>
+        <p className="text-muted-foreground mb-8 text-lg">Sauvegardez vos équipements préférés pour les retrouver plus tard.</p>
+        <Button asChild size="lg" className="h-14 px-8 bg-primary text-primary-foreground font-bold text-lg">
+          <Link href="/products">Parcourir le catalogue</Link>
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500">
-            <Heart className="w-5 h-5 fill-current" />
-          </div>
-          <h1 className="text-2xl md:text-3xl font-black text-navy">Mes Favoris ({items.length})</h1>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
-        {items.map((product) => (
-          <div key={product.id} className="group relative bg-white border border-border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1 flex flex-col">
-            
-            <button 
-              className="absolute top-2 right-2 z-10 w-8 h-8 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center text-red-500 hover:bg-red-50 transition-colors"
-              onClick={() => toggleWishlist(product.id)}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-            
-            <Link href={`/products/${product.id}`} className="block relative aspect-square bg-gray-50 overflow-hidden">
-              <img 
-                src={product.images?.[0] || "https://placehold.co/400x400/1a56db/white?text=Produit"} 
-                alt={product.name}
-                className="w-full h-full object-cover p-4 transition-transform duration-300 group-hover:scale-105"
-              />
-            </Link>
-            
-            <div className="p-4 flex flex-col flex-1 justify-between gap-2">
-              <div>
-                <Link href={`/products/${product.id}`} className="block">
-                  <h3 className="text-sm font-bold text-navy line-clamp-2 leading-tight group-hover:text-primary transition-colors">
-                    {product.name}
-                  </h3>
-                </Link>
-              </div>
-              
-              <div className="mt-2 flex items-end justify-between">
-                <div className="text-base font-black text-primary">{formatPrice(product.price)}</div>
-                
-                <Button 
-                  size="icon" 
-                  className="w-9 h-9 rounded-full shadow-sm shrink-0 hover:scale-105 active:scale-95 transition-transform"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    addToCart(product.id, 1);
-                  }}
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
+    <div className="container mx-auto px-4 py-8 md:py-12">
+      <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight mb-8">Mes Favoris ({items.length})</h1>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+        {items.map((productId) => (
+          <WishlistItem key={productId} productId={productId} onRemove={() => toggleWishlist(productId)} />
         ))}
       </div>
     </div>
+  );
+}
+
+function WishlistItem({ productId, onRemove }: { productId: number, onRemove: () => void }) {
+  const { data: product, isLoading } = useGetProduct(productId);
+  const { addToCart } = useCart();
+
+  if (isLoading) return <div className="aspect-square bg-muted animate-pulse rounded-xl"></div>;
+  if (!product) return null;
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToCart(product.id, 1);
+    toast.success(`${product.name} ajouté au panier`);
+  };
+
+  return (
+    <Link href={`/products/${product.id}`}>
+      <Card className="group h-full flex flex-col overflow-hidden border-border hover:border-primary/50 hover:shadow-lg transition-all duration-300 bg-card rounded-xl">
+        <div className="relative aspect-square bg-muted/30 p-4 flex items-center justify-center overflow-hidden">
+          <button 
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(); }}
+            className="absolute top-2 right-2 z-10 p-2 rounded-full bg-white/80 text-destructive hover:bg-destructive hover:text-white transition-colors shadow-sm"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          <img 
+            src={product.images?.[0] || 'https://placehold.co/400x400'} 
+            alt={product.name}
+            className="max-h-full object-contain group-hover:scale-105 transition-transform duration-500"
+          />
+        </div>
+        <CardContent className="p-4 flex-1 flex flex-col gap-2">
+          <h4 className="font-bold text-sm leading-tight text-foreground line-clamp-2 flex-1 group-hover:text-primary transition-colors">
+            {product.name}
+          </h4>
+          <div className="flex items-end justify-between mt-1">
+            <div className="font-extrabold text-lg text-primary tracking-tight">
+              {product.price.toLocaleString('fr-DZ')} <span className="text-xs font-normal">DA</span>
+            </div>
+            <Button 
+              size="icon" 
+              className="h-9 w-9 rounded-full bg-secondary hover:bg-secondary/90 text-white shadow-md transition-transform active:scale-95 shrink-0"
+              onClick={handleAddToCart}
+            >
+              <ShoppingCart className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
