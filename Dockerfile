@@ -87,4 +87,10 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://localhost:'+process.env.PORT+'/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
+# Run migrations first, then start the API server.
+# Using shell form so the two commands are chained with && (migrate must
+# succeed before the server boots; if migrate exits non-zero, the container
+# stops and Dokploy/Docker marks the deployment as failed — surfacing the
+# problem immediately instead of starting with a broken schema).
+CMD node --enable-source-maps artifacts/api-server/dist/migrate.mjs && \
+    node --enable-source-maps artifacts/api-server/dist/index.mjs
