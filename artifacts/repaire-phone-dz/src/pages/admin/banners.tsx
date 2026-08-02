@@ -271,6 +271,7 @@ export default function AdminBanners() {
                         <ImageUpload
                           value={field.value}
                           onChange={(v) => field.onChange(v ?? '')}
+                          spec={{ width: 1920, height: 700, ratio: '2.74:1', formats: ['WebP', 'PNG'], note: 'Format paysage grande résolution' }}
                         />
                       </FormControl>
                       <FormDescription className="text-xs">Dimensions recommandées : 1200x500px, format paysage.</FormDescription>

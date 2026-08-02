@@ -1,8 +1,16 @@
 import { useRef, useState, useCallback } from 'react';
-import { Upload, X, CheckCircle2, AlertCircle, Loader2, ImageIcon } from 'lucide-react';
+import { Upload, X, CheckCircle2, AlertCircle, Loader2, ImageIcon, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+
+export interface ImageSpec {
+  width: number;
+  height: number;
+  ratio?: string;
+  formats?: string[];
+  note?: string;
+}
 
 interface ImageUploadProps {
   value?: string;
@@ -10,6 +18,7 @@ interface ImageUploadProps {
   label?: string;
   accept?: string;
   maxSizeMb?: number;
+  spec?: ImageSpec;
   className?: string;
 }
 
@@ -34,6 +43,7 @@ export function ImageUpload({
   label,
   accept = 'image/jpeg,image/jpg,image/png,image/webp',
   maxSizeMb = 5,
+  spec,
   className,
 }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -265,6 +275,31 @@ export function ImageUpload({
           <Upload className="mr-2 h-3.5 w-3.5" />
           Choisir une image
         </Button>
+      )}
+
+      {/* Spec hint */}
+      {spec && (
+        <div className="flex items-start gap-2 rounded-md bg-muted/40 border border-border px-3 py-2">
+          <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+          <div className="text-xs text-muted-foreground space-y-0.5">
+            <span className="font-medium text-foreground/80">
+              🖼 {spec.width} × {spec.height} px
+            </span>
+            {spec.ratio && (
+              <span className="mx-1.5 text-border">·</span>
+            )}
+            {spec.ratio && <span>{spec.ratio}</span>}
+            {spec.formats && spec.formats.length > 0 && (
+              <>
+                <span className="mx-1.5 text-border">·</span>
+                <span>{spec.formats.join(' / ')}</span>
+              </>
+            )}
+            {spec.note && (
+              <p className="mt-0.5 text-muted-foreground/70">{spec.note}</p>
+            )}
+          </div>
+        </div>
       )}
 
       <input

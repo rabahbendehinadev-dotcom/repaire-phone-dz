@@ -280,6 +280,7 @@ export default function AdminCategories() {
                         <ImageUpload
                           value={field.value}
                           onChange={(v) => field.onChange(v ?? '')}
+                          spec={{ width: 400, height: 400, ratio: '1:1', formats: ['WebP', 'PNG', 'JPG'], note: 'Fond transparent recommandé' }}
                         />
                       </FormControl>
                       <FormMessage />

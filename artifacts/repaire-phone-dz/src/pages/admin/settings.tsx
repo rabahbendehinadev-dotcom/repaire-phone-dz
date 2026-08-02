@@ -199,6 +199,7 @@ export default function AdminSettings() {
                           <ImageUpload
                             value={field.value}
                             onChange={(v) => field.onChange(v ?? '')}
+                            spec={{ width: 400, height: 120, ratio: '10:3', formats: ['SVG', 'PNG', 'WebP'], note: 'Fond transparent recommandé' }}
                           />
                         </FormControl>
                         <FormDescription>Logo principal de la boutique.</FormDescription>
@@ -216,6 +217,7 @@ export default function AdminSettings() {
                           <ImageUpload
                             value={field.value}
                             onChange={(v) => field.onChange(v ?? '')}
+                            spec={{ width: 64, height: 64, ratio: '1:1', formats: ['PNG', 'ICO'], note: 'Icône du navigateur, carré obligatoire' }}
                           />
                         </FormControl>
                         <FormDescription>Icône de l'onglet du navigateur (recommandé: 32x32px).</FormDescription>

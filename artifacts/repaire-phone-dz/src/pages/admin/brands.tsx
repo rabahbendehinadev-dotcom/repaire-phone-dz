@@ -269,6 +269,7 @@ export default function AdminBrands() {
                         <ImageUpload
                           value={field.value}
                           onChange={(v) => field.onChange(v ?? '')}
+                          spec={{ width: 400, height: 200, ratio: '2:1', formats: ['PNG', 'WebP', 'SVG'], note: 'Fond transparent recommandé' }}
                         />
                       </FormControl>
                       <FormMessage />

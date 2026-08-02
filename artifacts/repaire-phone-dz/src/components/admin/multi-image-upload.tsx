@@ -8,6 +8,7 @@ interface MultiImageUploadProps {
   value: string[];
   onChange: (images: string[]) => void;
   maxImages?: number;
+  spec?: { width: number; height: number; ratio?: string; formats?: string[]; note?: string };
 }
 
 function getImageSrc(value?: string): string | undefined {
@@ -316,6 +317,24 @@ export function MultiImageUpload({
             <p className="text-xs text-muted-foreground/60">
               Formats acceptés : JPG, PNG, WEBP · Max {maxImages} images
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Spec hint */}
+      {spec && (
+        <div className="flex items-start gap-2 rounded-md bg-muted/40 border border-border px-3 py-2">
+          <span className="text-muted-foreground shrink-0 mt-0.5 text-xs">ℹ</span>
+          <div className="text-xs text-muted-foreground space-y-0.5">
+            <span className="font-medium text-foreground/80">
+              🖼 {spec.width} × {spec.height} px
+            </span>
+            {spec.ratio && <span className="mx-1.5 text-border">·</span>}
+            {spec.ratio && <span>{spec.ratio}</span>}
+            {spec.formats && spec.formats.length > 0 && (
+              <><span className="mx-1.5 text-border">·</span><span>{spec.formats.join(' / ')}</span></>
+            )}
+            {spec.note && <p className="mt-0.5 text-muted-foreground/70">{spec.note}</p>}
           </div>
         </div>
       )}
