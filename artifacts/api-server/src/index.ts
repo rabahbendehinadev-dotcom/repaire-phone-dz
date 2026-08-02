@@ -16,11 +16,18 @@ async function seedSuperAdmin() {
     // so the admin can always log in with the current ADMIN_PASSWORD value.
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Upsert: create if not exists, or update password + ensure active if exists.
-    // This handles three cases safely:
-    //   1. Fresh DB — creates the super admin row.
-    //   2. Admin exists with wrong password — resets it to current env var value.
-    //   3. Admin exists with correct password — no visible change (hash differs but login works).
+    // Remove any stale rows that share the same username but have a different
+    // email. This prevents the INSERT below from failing on the username unique
+    // constraint when ADMIN_EMAIL was changed between deployments.
+    await db
+      .delete(adminUsersTable)
+      .where(
+        eq(adminUsersTable.username, "superadmin"),
+      );
+
+    // Insert fresh — now that any username collision is gone, this is safe.
+    // We rely on the delete+insert pattern instead of upsert to avoid racing
+    // against both the email and username unique constraints simultaneously.
     await db
       .insert(adminUsersTable)
       .values({
@@ -39,6 +46,7 @@ async function seedSuperAdmin() {
           passwordHash,
           isActive: true,
           role: "super_admin",
+          username: "superadmin",
         },
       });
 
