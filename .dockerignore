@@ -35,6 +35,9 @@ logs
 *.sql
 *.dump
 *.backup
+# Re-include migration SQL files AFTER the *.sql exclusion — later rules win
+# in .dockerignore, so this exception must come after the glob it overrides.
+!lib/db/migrations/**.sql
 
 # ── Attached assets (Replit uploads) ─────────────────────────────────────────
 attached_assets
