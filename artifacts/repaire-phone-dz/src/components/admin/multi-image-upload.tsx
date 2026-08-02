@@ -9,11 +9,16 @@ interface MultiImageUploadProps {
   onChange: (images: string[]) => void;
   maxImages?: number;
   spec?: { width: number; height: number; ratio?: string; formats?: string[]; note?: string };
+  /** Destination subfolder on the server: products | categories | brands | banners | users | settings | general */
+  folder?: string;
 }
 
 function getImageSrc(value?: string): string | undefined {
   if (!value) return undefined;
+  // Legacy GCS object paths (old uploads)
   if (value.startsWith('/objects/')) return '/api/storage' + value;
+  // Local uploads served directly by Express static
+  if (value.startsWith('/uploads/')) return value;
   if (value.startsWith('http')) return value;
   return value;
 }
@@ -41,6 +46,7 @@ export function MultiImageUpload({
   onChange,
   maxImages = 10,
   spec,
+  folder = 'general',
 }: MultiImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [altTexts, setAltTexts] = useState<Record<string, string>>({});
@@ -52,33 +58,24 @@ export function MultiImageUpload({
     if (!ALLOWED_TYPES.includes(file.type)) return null;
 
     try {
-      const res = await fetch('/api/storage/uploads/request-url', {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', folder);
+
+      const res = await fetch('/api/admin/uploads', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          name: file.name,
-          size: file.size,
-          contentType: file.type,
-        }),
+        body: formData,
       });
 
       if (!res.ok) return null;
 
-      const { uploadURL, objectPath } = await res.json();
-
-      const putRes = await fetch(uploadURL, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      });
-
-      if (!putRes.ok) return null;
-      return objectPath as string;
+      const { url } = await res.json() as { url: string };
+      return url;
     } catch {
       return null;
     }
-  }, []);
+  }, [folder]);
 
   const handleFilesSelected = async (files: FileList) => {
     const remaining = maxImages - value.length;

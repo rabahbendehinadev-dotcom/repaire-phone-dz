@@ -20,11 +20,16 @@ interface ImageUploadProps {
   maxSizeMb?: number;
   spec?: ImageSpec;
   className?: string;
+  /** Destination subfolder on the server: products | categories | brands | banners | users | settings | general */
+  folder?: string;
 }
 
 function getImageSrc(value?: string): string | undefined {
   if (!value) return undefined;
+  // Legacy GCS object paths (old uploads) — served via the storage proxy
   if (value.startsWith('/objects/')) return '/api/storage' + value;
+  // Local uploads served directly by Express static
+  if (value.startsWith('/uploads/')) return value;
   if (value.startsWith('http')) return value;
   return value;
 }
@@ -45,6 +50,7 @@ export function ImageUpload({
   maxSizeMb = 5,
   spec,
   className,
+  folder = 'general',
 }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -76,51 +82,36 @@ export function ImageUpload({
 
     setError(null);
     setUploadState('uploading');
-    setProgress(0);
+    setProgress(10);
     setCurrentFileName(file.name);
     setCurrentFileSize(file.size);
 
     try {
-      // Step 1: Request upload URL
-      setProgress(10);
-      const res = await fetch('/api/storage/uploads/request-url', {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', folder);
+
+      setProgress(40);
+      const res = await fetch('/api/admin/uploads', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          name: file.name,
-          size: file.size,
-          contentType: file.type,
-        }),
+        body: formData,
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Impossible d\'obtenir l\'URL de téléchargement');
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error || 'Erreur lors du téléchargement');
       }
 
-      const { uploadURL, objectPath } = await res.json();
-      setProgress(30);
-
-      // Step 2: PUT file to uploadURL
-      const putRes = await fetch(uploadURL, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      });
-
-      if (!putRes.ok) {
-        throw new Error('Échec du téléchargement du fichier');
-      }
-
+      const { url } = await res.json() as { url: string };
       setProgress(100);
       setUploadState('success');
-      onChange(objectPath);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors du téléchargement');
+      onChange(url);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erreur lors du téléchargement');
       setUploadState('error');
     }
-  }, [maxSizeMb, onChange]);
+  }, [maxSizeMb, onChange, folder]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

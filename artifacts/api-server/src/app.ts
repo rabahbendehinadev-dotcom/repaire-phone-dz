@@ -41,6 +41,13 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 
+// ── Serve uploaded images from persistent local storage ──────────────────────
+// Files are saved by POST /api/admin/uploads into UPLOADS_DIR subfolders.
+// In Docker/Dokploy, mount a persistent volume at /app/uploads so files
+// survive container restarts, redeployments, and image rebuilds.
+const uploadsDir = process.env["UPLOADS_DIR"] || "/app/uploads";
+app.use("/uploads", express.static(uploadsDir, { maxAge: "7d" }));
+
 // ── Production: serve the pre-built frontend SPA ────────────────────────────
 // In Docker the layout is:
 //   /app/artifacts/api-server/dist/index.mjs  ← __dirname here

@@ -1,54 +1,28 @@
 import { Readable } from 'stream';
-import {
-  RequestUploadUrlBody,
-  RequestUploadUrlResponse,
-} from '@workspace/api-zod';
 import { Router, type IRouter, type Request, type Response } from 'express';
 
 import {
   ObjectNotFoundError,
   ObjectStorageService,
 } from '../lib/objectStorage';
-import { requireAdminSession } from '../lib/admin-auth';
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
 /**
- * POST /storage/uploads/request-url
+ * POST /storage/uploads/request-url  — DEPRECATED
  *
- * Request a presigned URL for file upload.
- * Admin-only — only authenticated admins can mint upload URLs.
+ * This endpoint previously generated GCS signed upload URLs.
+ * Image uploads are now handled by POST /admin/uploads (multipart/form-data).
+ * Kept as a stub so old clients receive a clear error instead of a 404.
  */
 router.post(
   '/storage/uploads/request-url',
-  requireAdminSession,
-  async (req: Request, res: Response) => {
-
-    const parsed = RequestUploadUrlBody.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Missing or invalid required fields' });
-      return;
-    }
-
-    try {
-      const { name, size, contentType } = parsed.data;
-
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      const objectPath =
-        objectStorageService.normalizeObjectEntityPath(uploadURL);
-
-      res.json(
-        RequestUploadUrlResponse.parse({
-          uploadURL,
-          objectPath,
-          metadata: { name, size, contentType },
-        }),
-      );
-    } catch (error) {
-      req.log.error({ err: error }, 'Error generating upload URL');
-      res.status(500).json({ error: 'Failed to generate upload URL' });
-    }
+  (_req: Request, res: Response) => {
+    res.status(410).json({
+      error:
+        'Ce endpoint est désactivé. Utilisez POST /api/admin/uploads (multipart/form-data) à la place.',
+    });
   },
 );
 

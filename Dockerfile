@@ -80,6 +80,13 @@ COPY --from=builder /app/lib/db/migrations ./lib/db/migrations
 ENV NODE_ENV=production
 # PORT must be supplied at runtime (e.g. -e PORT=8080 or via Dokploy)
 ENV PORT=8080
+# Default uploads directory — override with UPLOADS_DIR env var if needed.
+# Mount a persistent volume at /app/uploads in Dokploy so images survive
+# container rebuilds and redeployments.
+ENV UPLOADS_DIR=/app/uploads
+
+# Create the uploads directory and ensure the node user can write to it
+RUN mkdir -p /app/uploads && chown -R node:node /app/uploads
 
 EXPOSE 8080
 
