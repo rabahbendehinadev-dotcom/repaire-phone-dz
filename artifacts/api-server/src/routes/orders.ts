@@ -22,6 +22,45 @@ function formatOrder(o: any) {
   };
 }
 
+// ── Guest order (no auth required) ──────────────────────────────────────────
+router.post("/orders/guest", async (req, res): Promise<void> => {
+  const { items, shippingAddress, notes, paymentMethod, idempotencyKey } = req.body;
+  if (!shippingAddress || !Array.isArray(items) || items.length === 0) {
+    res.status(400).json({ error: "items et shippingAddress requis" }); return;
+  }
+  const validPaymentMethods = ["cash_on_delivery", "bank_transfer", "cib_edahabia"];
+  const resolvedPaymentMethod = validPaymentMethods.includes(paymentMethod) ? paymentMethod : "cash_on_delivery";
+  const subtotal = items.reduce((s: number, i: any) => s + (Number(i.price) * Number(i.quantity)), 0);
+  const shipping = 500;
+  const total = subtotal + shipping;
+  const initialPaymentStatus = resolvedPaymentMethod === "cash_on_delivery" ? "pending" : "awaiting_confirmation";
+  const [order] = await db.insert(ordersTable).values({
+    idempotencyKey: idempotencyKey || null,
+    userId: null, // guest — no account
+    status: "pending",
+    paymentMethod: resolvedPaymentMethod,
+    paymentStatus: initialPaymentStatus,
+    subtotal: String(subtotal), discount: "0",
+    couponCode: null, shipping: String(shipping), total: String(total),
+    shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
+  }).returning();
+  res.status(201).json(formatOrder(order));
+});
+
+// Guest: submit payment proof by order ID (no account needed)
+router.patch("/orders/guest/:id/payment-proof", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  const { paymentProofUrl } = req.body;
+  if (!paymentProofUrl) { res.status(400).json({ error: "paymentProofUrl requis" }); return; }
+  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+  if (!order) { res.status(404).json({ error: "Commande non trouvée" }); return; }
+  if (order.userId !== null) { res.status(403).json({ error: "Utilisez l'endpoint authentifié" }); return; }
+  const [updated] = await db.update(ordersTable)
+    .set({ paymentProofUrl, paymentStatus: "awaiting_confirmation" })
+    .where(eq(ordersTable.id, id)).returning();
+  res.json(formatOrder(updated));
+});
+
 router.get("/orders", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
   const orders = await db.select().from(ordersTable).where(eq(ordersTable.userId, userId)).orderBy(desc(ordersTable.createdAt));

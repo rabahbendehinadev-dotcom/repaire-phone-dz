@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useCart } from '@/hooks/use-cart-store';
+import { useAuth } from '@/hooks/use-auth';
 import { useCreateOrder } from '@workspace/api-client-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -28,10 +29,9 @@ const WILAYAS = [
   "41 - Souk Ahras", "42 - Tipaza", "43 - Mila", "44 - Aïn Defla", "45 - Naâma",
   "46 - Aïn Témouchent", "47 - Ghardaïa", "48 - Relizane", "49 - Timimoun", "50 - Bordj Badji Mokhtar",
   "51 - Ouled Djellal", "52 - Béni Abbès", "53 - In Salah", "54 - In Guezzam", "55 - Touggourt",
-  "56 - Djanet", "57 - El M'Ghair", "58 - El Meniaa"
+  "56 - Djanet", "57 - El M'Ghair", "58 - El Meniaa",
 ];
 
-// Bank details for transfer
 const BANK_DETAILS = {
   bankName: "BNA - Banque Nationale d'Algérie",
   accountName: "Repaire Phone DZ SARL",
@@ -74,53 +74,74 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; description: strin
 ];
 
 export default function Checkout() {
-  const { cart, isLoading, clearCart } = useCart();
+  const { cart, isLoading, clearCart, isGuest } = useCart();
+  const { isAuthenticated } = useAuth();
   const createOrder = useCreateOrder();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingProof, setIsSubmittingProof] = useState(false);
   const [, setLocation] = useLocation();
   const [orderComplete, setOrderComplete] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash_on_delivery');
   const [proofUrl, setProofUrl] = useState('');
   const [proofSubmitted, setProofSubmitted] = useState(false);
-  // Stable idempotency key per checkout session — regenerated if user navigates away
   const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
   const form = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
-    defaultValues: {
-      fullName: '',
-      phone: '',
-      wilaya: '',
-      commune: '',
-      address: '',
-      notes: '',
-    },
+    defaultValues: { fullName: '', phone: '', wilaya: '', commune: '', address: '', notes: '' },
   });
 
   const onSubmit = async (data: CheckoutFormValues) => {
     if (!cart || cart.items.length === 0) return;
-
+    setIsSubmitting(true);
     try {
-      const order = await createOrder.mutateAsync({
-        data: {
-          shippingAddress: {
-            fullName: data.fullName,
-            phone: data.phone,
-            wilaya: data.wilaya,
-            commune: data.commune,
-            address: data.address,
+      const shippingAddress = {
+        fullName: data.fullName,
+        phone: data.phone,
+        wilaya: data.wilaya,
+        commune: data.commune,
+        address: data.address,
+      };
+
+      let order: any;
+
+      if (isAuthenticated) {
+        // Authenticated: use server cart (existing flow)
+        order = await createOrder.mutateAsync({
+          data: {
+            shippingAddress,
+            notes: data.notes,
+            paymentMethod,
+            idempotencyKey: idempotencyKeyRef.current,
           },
-          notes: data.notes,
-          paymentMethod,
-          idempotencyKey: idempotencyKeyRef.current,
+        });
+      } else {
+        // Guest: send cart items directly to the guest endpoint
+        const res = await fetch('/api/orders/guest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: cart.items,
+            shippingAddress,
+            notes: data.notes,
+            paymentMethod,
+            idempotencyKey: idempotencyKeyRef.current,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Erreur serveur');
         }
-      });
+        order = await res.json();
+      }
 
       clearCart();
       setOrderComplete(order);
       toast.success('Commande validée avec succès');
     } catch (err: any) {
-      toast.error('Erreur lors de la validation de la commande');
+      toast.error(err.message || 'Erreur lors de la validation de la commande');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -128,7 +149,12 @@ export default function Checkout() {
     if (!proofUrl.trim() || !orderComplete) return;
     setIsSubmittingProof(true);
     try {
-      const res = await fetch(`/api/orders/${orderComplete.id}/payment-proof`, {
+      // Use the guest endpoint if no userId on order, otherwise the authenticated one
+      const endpoint = orderComplete.userId
+        ? `/api/orders/${orderComplete.id}/payment-proof`
+        : `/api/orders/guest/${orderComplete.id}/payment-proof`;
+
+      const res = await fetch(endpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -138,7 +164,7 @@ export default function Checkout() {
       setProofSubmitted(true);
       toast.success('Preuve de paiement envoyée. Nous vérifierons votre virement.');
     } catch {
-      toast.error('Erreur lors de l\'envoi de la preuve');
+      toast.error("Erreur lors de l'envoi de la preuve");
     } finally {
       setIsSubmittingProof(false);
     }
@@ -151,6 +177,7 @@ export default function Checkout() {
 
   if (isLoading) return <div className="p-20 text-center">Chargement...</div>;
 
+  // ── Order confirmation screen ───────────────────────────────────────────────
   if (orderComplete) {
     return (
       <div className="container mx-auto px-4 py-20 max-w-2xl">
@@ -162,6 +189,11 @@ export default function Checkout() {
           <p className="text-muted-foreground text-lg mb-2">
             Commande <span className="font-bold text-foreground">#{orderComplete.id}</span> enregistrée avec succès.
           </p>
+          {isGuest && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Commande passée en tant que visiteur — pas besoin de compte.
+            </p>
+          )}
         </div>
 
         {/* Bank transfer instructions */}
@@ -212,10 +244,10 @@ export default function Checkout() {
                     />
                     <Button
                       onClick={handleSubmitProof}
-                      disabled={!proofUrl.trim() || submitProof.isPending}
+                      disabled={!proofUrl.trim() || isSubmittingProof}
                       className="shrink-0"
                     >
-                      {submitProof.isPending ? '...' : 'Envoyer'}
+                      {isSubmittingProof ? '...' : 'Envoyer'}
                     </Button>
                   </div>
                 </div>
@@ -229,7 +261,6 @@ export default function Checkout() {
           </Card>
         )}
 
-        {/* CIB/Edahabia placeholder */}
         {orderComplete.paymentMethod === 'cib_edahabia' && (
           <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 mb-6">
             <CardContent className="p-6">
@@ -251,9 +282,11 @@ export default function Checkout() {
         )}
 
         <div className="flex gap-4 justify-center">
-          <Button asChild variant="outline">
-            <Link href="/orders">Voir mes commandes</Link>
-          </Button>
+          {isAuthenticated && (
+            <Button asChild variant="outline">
+              <Link href="/orders">Voir mes commandes</Link>
+            </Button>
+          )}
           <Button asChild className="bg-primary">
             <Link href="/products">Continuer les achats</Link>
           </Button>
@@ -267,9 +300,16 @@ export default function Checkout() {
     return null;
   }
 
+  // ── Checkout form ──────────────────────────────────────────────────────────
   return (
     <div className="container mx-auto px-4 py-8 md:py-12">
-      <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight mb-8">Validation de la commande</h1>
+      <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight mb-2">Validation de la commande</h1>
+      {isGuest && (
+        <p className="text-sm text-muted-foreground mb-8">
+          Vous achetez en tant que visiteur — aucun compte requis.
+        </p>
+      )}
+      {!isGuest && <div className="mb-8" />}
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* Checkout Form */}
@@ -287,99 +327,63 @@ export default function Checkout() {
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" id="checkout-form">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="fullName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nom et Prénom</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Votre nom complet" {...field} className="bg-muted/30 h-11" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Numéro de téléphone</FormLabel>
-                          <FormControl>
-                            <Input placeholder="05xx xx xx xx" {...field} className="bg-muted/30 h-11" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <FormField control={form.control} name="fullName" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nom et Prénom</FormLabel>
+                        <FormControl><Input placeholder="Votre nom complet" {...field} className="bg-muted/30 h-11" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="phone" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Numéro de téléphone</FormLabel>
+                        <FormControl><Input placeholder="05xx xx xx xx" {...field} className="bg-muted/30 h-11" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="wilaya"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Wilaya</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="bg-muted/30 h-11">
-                                <SelectValue placeholder="Sélectionnez votre wilaya" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="max-h-60">
-                              {WILAYAS.map(w => (
-                                <SelectItem key={w} value={w}>{w}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="commune"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Commune</FormLabel>
+                    <FormField control={form.control} name="wilaya" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Wilaya</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <Input placeholder="Votre commune" {...field} className="bg-muted/30 h-11" />
+                            <SelectTrigger className="bg-muted/30 h-11">
+                              <SelectValue placeholder="Sélectionnez votre wilaya" />
+                            </SelectTrigger>
                           </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                          <SelectContent className="max-h-60">
+                            {WILAYAS.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="commune" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Commune</FormLabel>
+                        <FormControl><Input placeholder="Votre commune" {...field} className="bg-muted/30 h-11" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
                   </div>
 
-                  <FormField
-                    control={form.control}
-                    name="address"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Adresse détaillée</FormLabel>
-                        <FormControl>
-                          <Textarea placeholder="Nom de rue, numéro de bâtiment, etc." {...field} className="bg-muted/30 resize-none" rows={3} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <FormField control={form.control} name="address" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Adresse détaillée</FormLabel>
+                      <FormControl><Textarea placeholder="Nom de rue, numéro de bâtiment, etc." {...field} className="bg-muted/30 resize-none" rows={3} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
 
-                  <FormField
-                    control={form.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Notes (Optionnel)</FormLabel>
-                        <FormControl>
-                          <Textarea placeholder="Indications pour le livreur..." {...field} className="bg-muted/30 resize-none" rows={2} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <FormField control={form.control} name="notes" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes (Optionnel)</FormLabel>
+                      <FormControl><Textarea placeholder="Indications pour le livreur..." {...field} className="bg-muted/30 resize-none" rows={2} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                 </form>
               </Form>
             </CardContent>
@@ -407,9 +411,7 @@ export default function Checkout() {
                       onClick={() => !isDisabled && setPaymentMethod(option.value)}
                       className={cn(
                         "w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all",
-                        isSelected && !isDisabled
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-muted/20 hover:border-muted-foreground/30",
+                        isSelected && !isDisabled ? "border-primary bg-primary/5" : "border-border bg-muted/20 hover:border-muted-foreground/30",
                         isDisabled && "opacity-50 cursor-not-allowed"
                       )}
                     >
@@ -434,16 +436,13 @@ export default function Checkout() {
                         "h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center",
                         isSelected && !isDisabled ? "border-primary" : "border-muted-foreground/30"
                       )}>
-                        {isSelected && !isDisabled && (
-                          <div className="h-2.5 w-2.5 rounded-full bg-primary" />
-                        )}
+                        {isSelected && !isDisabled && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
                       </div>
                     </button>
                   );
                 })}
               </div>
 
-              {/* Bank transfer details preview */}
               {paymentMethod === 'bank_transfer' && (
                 <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 rounded-xl">
                   <p className="text-sm font-semibold text-amber-800 dark:text-amber-400 mb-2 flex items-center gap-2">
@@ -491,7 +490,7 @@ export default function Checkout() {
                     </div>
                     <div className="flex-1 min-w-0 flex flex-col justify-center">
                       <div className="font-bold text-foreground line-clamp-2 leading-tight mb-1">{item.name}</div>
-                      <div className="text-primary font-bold">{item.price.toLocaleString('fr-DZ')} DA</div>
+                      <div className="text-primary font-bold">{Number(item.price).toLocaleString('fr-DZ')} DA</div>
                     </div>
                   </div>
                 ))}
@@ -500,9 +499,9 @@ export default function Checkout() {
               <div className="space-y-3 text-sm pt-4 border-t border-border mb-6">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Sous-total</span>
-                  <span className="font-bold">{cart.subtotal.toLocaleString('fr-DZ')} DA</span>
+                  <span className="font-bold">{Number(cart.subtotal).toLocaleString('fr-DZ')} DA</span>
                 </div>
-                {(cart.discount > 0 || cart.couponDiscount > 0) && (
+                {((cart.discount > 0) || (cart.couponDiscount > 0)) && (
                   <div className="flex justify-between text-secondary font-bold">
                     <span>Remises</span>
                     <span>-{((cart.discount || 0) + (cart.couponDiscount || 0)).toLocaleString('fr-DZ')} DA</span>
@@ -510,14 +509,14 @@ export default function Checkout() {
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Livraison</span>
-                  <span className="font-bold">{cart.shipping === 0 ? 'Gratuite' : `${cart.shipping.toLocaleString('fr-DZ')} DA`}</span>
+                  <span className="font-bold">{cart.shipping === 0 ? 'Gratuite' : `${Number(cart.shipping).toLocaleString('fr-DZ')} DA`}</span>
                 </div>
               </div>
 
               <div className="border-t border-border pt-4 mb-6">
                 <div className="flex justify-between items-end">
                   <span className="font-bold text-foreground text-lg">Total</span>
-                  <span className="font-extrabold text-2xl text-primary tracking-tight">{cart.total.toLocaleString('fr-DZ')} DA</span>
+                  <span className="font-extrabold text-2xl text-primary tracking-tight">{Number(cart.total).toLocaleString('fr-DZ')} DA</span>
                 </div>
               </div>
 
@@ -525,9 +524,9 @@ export default function Checkout() {
                 type="submit"
                 form="checkout-form"
                 className="w-full h-14 text-base font-bold bg-secondary hover:bg-secondary/90 text-white shadow-lg shadow-secondary/20"
-                disabled={createOrder.isPending}
+                disabled={isSubmitting || createOrder.isPending}
               >
-                {createOrder.isPending ? 'Validation en cours...' : 'Confirmer la commande'}
+                {(isSubmitting || createOrder.isPending) ? 'Validation en cours...' : 'Confirmer la commande'}
               </Button>
             </CardContent>
           </Card>

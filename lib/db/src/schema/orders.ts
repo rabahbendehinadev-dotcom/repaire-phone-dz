@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
   idempotencyKey: text("idempotency_key"),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id"), // nullable for guest orders
   status: text("status").notNull().default("pending"), // pending, confirmed, processing, shipped, delivered, cancelled
   // payment fields
   paymentMethod: text("payment_method").notNull().default("cash_on_delivery"), // cash_on_delivery, bank_transfer, cib_edahabia

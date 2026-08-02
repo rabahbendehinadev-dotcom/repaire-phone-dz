@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 export default function Cart() {
-  const { cart, isLoading, updateQuantity, removeItem, clearCart } = useCart();
+  const { cart, isLoading, updateQuantity, removeItem, clearCart, isGuest } = useCart();
   const [couponCode, setCouponCode] = useState(cart?.couponCode || '');
   const applyCoupon = useApplyCoupon();
   const [, setLocation] = useLocation();
