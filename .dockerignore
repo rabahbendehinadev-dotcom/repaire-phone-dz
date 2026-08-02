@@ -1,0 +1,52 @@
+# ── Dependencies (rebuilt inside Docker) ──────────────────────────────────────
+node_modules
+**/node_modules
+
+# ── Build outputs (rebuilt inside Docker) ─────────────────────────────────────
+**/dist
+**/.expo
+**/.expo-shared
+**/*.tsbuildinfo
+
+# ── Secrets & environment ──────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Replit-specific ────────────────────────────────────────────────────────────
+.replit
+.replitignore
+.cache
+.local
+.agents
+.config
+
+# ── Development tools ──────────────────────────────────────────────────────────
+artifacts/mockup-sandbox
+artifacts/repaire-phone-dz-mobile
+
+# ── Uploads & user data (never baked into image) ──────────────────────────────
+uploads
+backups
+logs
+*.log
+
+# ── Database dumps ────────────────────────────────────────────────────────────
+*.sql
+*.dump
+*.backup
+
+# ── Attached assets (Replit uploads) ─────────────────────────────────────────
+attached_assets
+
+# ── Git ────────────────────────────────────────────────────────────────────────
+.git
+.gitignore
+
+# ── OS & editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+*.swp
+*.swo

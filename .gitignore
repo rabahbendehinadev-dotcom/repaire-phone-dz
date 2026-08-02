@@ -47,3 +47,25 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+.agents/
+.config/
+
+# Docker build outputs
+public/
+
+# Uploads & user-generated content
+uploads/
+backups/
+logs/
+*.log
+*.sql
+*.dump
+*.backup
+
+# Attached assets (Replit file uploads)
+attached_assets/
+
+# Environment files
+.env
+.env.*
+!.env.example
