@@ -129,6 +129,19 @@ router.post(
       await writeFile(filePath, file.buffer);
 
       const url = `/uploads/${folder}/${filename}`;
+
+      req.log.info(
+        {
+          folder,
+          filename,
+          savedPath: filePath,
+          publicUrl: url,
+          mimeType: detectedMime,
+          sizeBytes: file.buffer.length,
+        },
+        'File uploaded successfully',
+      );
+
       res.json({ success: true, url });
     } catch (err) {
       req.log.error({ err }, 'Error saving uploaded file');

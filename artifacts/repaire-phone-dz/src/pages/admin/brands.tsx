@@ -268,6 +268,7 @@ export default function AdminBrands() {
                       <FormLabel>Logo de la marque</FormLabel>
                       <FormControl>
                         <ImageUpload
+                          folder="brands"
                           value={field.value}
                           onChange={(v) => field.onChange(v ?? '')}
                           spec={{ width: 400, height: 200, ratio: '2:1', formats: ['PNG', 'WebP', 'SVG'], note: 'Fond transparent recommandé' }}

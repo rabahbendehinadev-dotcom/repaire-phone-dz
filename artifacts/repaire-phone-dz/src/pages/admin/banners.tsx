@@ -352,6 +352,7 @@ export default function AdminBanners() {
                       <FormItem>
                         <FormControl>
                           <ImageUpload
+                            folder="banners"
                             value={field.value}
                             onChange={(v) => field.onChange(v ?? '')}
                             spec={{ width: 1920, height: 700, ratio: '2.74:1', formats: ['WebP', 'PNG'], note: 'Format paysage grande résolution' }}
@@ -372,6 +373,7 @@ export default function AdminBanners() {
                       <FormItem>
                         <FormControl>
                           <ImageUpload
+                            folder="banners"
                             value={field.value}
                             onChange={(v) => field.onChange(v ?? '')}
                             spec={{ width: 1080, height: 1080, ratio: '1:1', formats: ['WebP', 'PNG'], note: 'Format carré pour mobile (ou 1080×1200)' }}

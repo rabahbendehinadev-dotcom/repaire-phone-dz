@@ -279,6 +279,7 @@ export default function AdminCategories() {
                       <FormLabel>Image de la catégorie</FormLabel>
                       <FormControl>
                         <ImageUpload
+                          folder="categories"
                           value={field.value}
                           onChange={(v) => field.onChange(v ?? '')}
                           spec={{ width: 400, height: 400, ratio: '1:1', formats: ['WebP', 'PNG', 'JPG'], note: 'Fond transparent recommandé' }}

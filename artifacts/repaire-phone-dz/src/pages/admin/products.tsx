@@ -597,6 +597,7 @@ export default function AdminProducts() {
                           <FormLabel>Galerie d'images</FormLabel>
                           <FormControl>
                             <MultiImageUpload
+                              folder="products"
                               value={field.value || []}
                               onChange={field.onChange}
                               spec={{ width: 800, height: 800, ratio: '1:1', formats: ['WebP', 'JPG', 'PNG'], note: 'Carré, fond blanc ou transparent' }}

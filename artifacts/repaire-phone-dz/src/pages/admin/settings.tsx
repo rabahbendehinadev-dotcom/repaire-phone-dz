@@ -197,6 +197,7 @@ export default function AdminSettings() {
                         <FormLabel>Logo du magasin</FormLabel>
                         <FormControl>
                           <ImageUpload
+                            folder="settings"
                             value={field.value}
                             onChange={(v) => field.onChange(v ?? '')}
                             spec={{ width: 400, height: 120, ratio: '10:3', formats: ['SVG', 'PNG', 'WebP'], note: 'Fond transparent recommandé' }}
@@ -215,6 +216,7 @@ export default function AdminSettings() {
                         <FormLabel>Favicon</FormLabel>
                         <FormControl>
                           <ImageUpload
+                            folder="settings"
                             value={field.value}
                             onChange={(v) => field.onChange(v ?? '')}
                             spec={{ width: 64, height: 64, ratio: '1:1', formats: ['PNG', 'ICO'], note: 'Icône du navigateur, carré obligatoire' }}
