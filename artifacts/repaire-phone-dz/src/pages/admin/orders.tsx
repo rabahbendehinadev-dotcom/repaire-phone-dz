@@ -1,18 +1,20 @@
-import { useState, useMemo } from 'react';
-import { useListAllOrders, useUpdateOrderStatus } from '@workspace/api-client-react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Eye, Filter, ArrowUpDown, ChevronDown, CheckSquare, Square, Printer, Download, MapPin, User, Package, Calendar, Link } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Search, Eye, Filter, Download, MapPin, User, Package, Calendar, CheckSquare, Square, Printer, CreditCard, ExternalLink, CheckCircle2, XCircle, Truck, Banknote, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getListAllOrdersQueryKey } from '@workspace/api-client-react';
+import { useListAllOrders, useUpdateOrderStatus, useUpdateOrderPayment, getListAllOrdersQueryKey } from '@workspace/api-client-react';
+import { cn } from '@/lib/utils';
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'En attente', color: 'bg-warning/10 text-warning-foreground border-warning/20' },
@@ -23,32 +25,49 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Annulée', color: 'bg-destructive/10 text-destructive border-destructive/20' },
 ];
 
+const PAYMENT_STATUS_OPTIONS = [
+  { value: 'all', label: 'Tous les paiements' },
+  { value: 'pending', label: 'En attente' },
+  { value: 'awaiting_confirmation', label: 'Preuve envoyée' },
+  { value: 'confirmed', label: 'Confirmé' },
+  { value: 'failed', label: 'Échoué' },
+];
+
+const PAYMENT_METHOD_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
+  cash_on_delivery: { label: 'À la livraison', icon: <Truck className="h-3.5 w-3.5" /> },
+  bank_transfer: { label: 'Virement', icon: <Banknote className="h-3.5 w-3.5" /> },
+  cib_edahabia: { label: 'CIB/Edahabia', icon: <CreditCard className="h-3.5 w-3.5" /> },
+};
+
 export default function AdminOrders() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(new Set());
-  
+  const [paymentNotes, setPaymentNotes] = useState('');
+
   const queryClient = useQueryClient();
-  
+
   const queryParams = {
     page,
     limit,
     search: search || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
+    paymentStatus: paymentStatusFilter !== 'all' ? paymentStatusFilter : undefined,
   };
-  
+
   const { data: ordersData, isLoading } = useListAllOrders(queryParams, { query: { queryKey: getListAllOrdersQueryKey(queryParams) } });
 
   const updateStatus = useUpdateOrderStatus();
+  const updatePayment = useUpdateOrderPayment();
 
   const handleUpdateStatus = async (orderId: number, newStatus: any) => {
     try {
       await updateStatus.mutateAsync({ id: orderId, data: { status: newStatus } });
       toast.success('Statut mis à jour');
-      // Invalidate the cache to refresh data, or optimistically update it
       queryClient.invalidateQueries({ queryKey: getListAllOrdersQueryKey() });
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus });
@@ -58,10 +77,42 @@ export default function AdminOrders() {
     }
   };
 
+  const handleUpdatePayment = async (orderId: number, newPaymentStatus: string) => {
+    try {
+      await updatePayment.mutateAsync({
+        id: orderId,
+        data: { paymentStatus: newPaymentStatus as any, paymentNotes: paymentNotes || undefined }
+      });
+      toast.success(newPaymentStatus === 'confirmed' ? 'Paiement confirmé ✓' : 'Statut de paiement mis à jour');
+      queryClient.invalidateQueries({ queryKey: getListAllOrdersQueryKey() });
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder({
+          ...selectedOrder,
+          paymentStatus: newPaymentStatus,
+          paymentNotes: paymentNotes || selectedOrder.paymentNotes,
+          status: newPaymentStatus === 'confirmed' && selectedOrder.status === 'pending' ? 'confirmed' : selectedOrder.status,
+        });
+      }
+      setPaymentNotes('');
+    } catch {
+      toast.error('Erreur lors de la mise à jour du paiement');
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const config = STATUS_OPTIONS.find(s => s.value === status);
     if (!config) return <Badge variant="outline" className="uppercase text-[10px]">{status}</Badge>;
     return <Badge variant="outline" className={`uppercase text-[10px] px-2 py-0.5 font-bold tracking-wider ${config.color}`}>{config.label}</Badge>;
+  };
+
+  const getPaymentStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending': return <Badge variant="outline" className="bg-muted/60 text-muted-foreground border-muted text-xs gap-1"><Clock className="h-3 w-3" />En attente</Badge>;
+      case 'awaiting_confirmation': return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-200 text-xs gap-1"><Clock className="h-3 w-3" />Preuve envoyée</Badge>;
+      case 'confirmed': return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200 text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Payé</Badge>;
+      case 'failed': return <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-xs gap-1"><XCircle className="h-3 w-3" />Échoué</Badge>;
+      default: return <Badge variant="outline" className="text-xs">{status}</Badge>;
+    }
   };
 
   const toggleRowSelection = (id: number) => {
@@ -81,24 +132,19 @@ export default function AdminOrders() {
 
   const exportCSV = () => {
     if (!ordersData?.orders?.length) return;
-    
-    // Create CSV content
-    const headers = ['ID', 'Date', 'Client', 'Email', 'Téléphone', 'Statut', 'Total (DA)'];
+    const headers = ['ID', 'Date', 'Client', 'Email', 'Téléphone', 'Statut', 'Mode paiement', 'Statut paiement', 'Total (DA)'];
     const rows = ordersData.orders.map(o => [
       o.id,
       format(new Date(o.createdAt), 'dd/MM/yyyy HH:mm'),
       `"${o.userName || 'Client invité'}"`,
       `"${o.userEmail || ''}"`,
-      `"${o.shippingAddress?.phone || ''}"`,
+      `"${(o.shippingAddress as any)?.phone || ''}"`,
       o.status,
+      o.paymentMethod || '',
+      o.paymentStatus || '',
       o.total
     ]);
-    
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(r => r.join(','))
-    ].join('\n');
-    
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -109,9 +155,7 @@ export default function AdminOrders() {
     document.body.removeChild(link);
   };
 
-  const printOrder = () => {
-    window.print();
-  };
+  const printOrder = () => window.print();
 
   return (
     <div className="space-y-6">
@@ -129,10 +173,10 @@ export default function AdminOrders() {
 
       <Card className="border-border shadow-sm overflow-hidden">
         <div className="p-4 border-b border-border bg-muted/20 flex flex-col lg:flex-row items-center justify-between gap-4">
-          <div className="relative w-full lg:w-96">
+          <div className="relative w-full lg:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Rechercher par ID commande, nom ou email..." 
+            <Input
+              placeholder="Rechercher par ID, nom ou email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 bg-background shadow-sm border-border h-9"
@@ -140,14 +184,24 @@ export default function AdminOrders() {
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <span className="text-sm text-muted-foreground font-medium whitespace-nowrap">Statut:</span>
+              <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[160px] h-9 bg-background shadow-sm">
-                  <SelectValue placeholder="Tous" />
+                <SelectTrigger className="w-full sm:w-[155px] h-9 bg-background shadow-sm">
+                  <SelectValue placeholder="Statut commande" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tous les statuts</SelectItem>
                   {STATUS_OPTIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[165px] h-9 bg-background shadow-sm">
+                  <SelectValue placeholder="Statut paiement" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_STATUS_OPTIONS.map(o => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -197,11 +251,12 @@ export default function AdminOrders() {
                     )}
                   </button>
                 </th>
-                <th className="px-4 py-3 font-semibold w-[100px]">ID</th>
+                <th className="px-4 py-3 font-semibold w-[90px]">ID</th>
                 <th className="px-4 py-3 font-semibold">Client</th>
                 <th className="px-4 py-3 font-semibold">Date & Heure</th>
-                <th className="px-4 py-3 font-semibold">Total</th>
                 <th className="px-4 py-3 font-semibold">Statut</th>
+                <th className="px-4 py-3 font-semibold">Paiement</th>
+                <th className="px-4 py-3 font-semibold">Total</th>
                 <th className="px-4 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
@@ -213,14 +268,15 @@ export default function AdminOrders() {
                     <td className="px-4 py-4"><Skeleton className="h-4 w-12" /></td>
                     <td className="px-4 py-4"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-40 mt-1" /></td>
                     <td className="px-4 py-4"><Skeleton className="h-4 w-24" /></td>
-                    <td className="px-4 py-4"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-4 py-4"><Skeleton className="h-6 w-24 rounded-full" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-4 py-4 text-right"><Skeleton className="h-8 w-8 ml-auto" /></td>
                   </tr>
                 ))
               ) : ordersData?.orders?.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-16 text-center">
+                  <td colSpan={8} className="px-4 py-16 text-center">
                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                       <Package className="h-12 w-12 mb-4 text-muted-foreground/30" />
                       <p className="text-lg font-medium text-foreground">Aucune commande trouvée</p>
@@ -236,21 +292,16 @@ export default function AdminOrders() {
                     </button>
                   </td>
                   <td className="px-4 py-3 font-bold text-foreground">
-                    <button onClick={() => setSelectedOrder(order)} className="hover:text-primary hover:underline">
+                    <button onClick={() => { setSelectedOrder(order); setPaymentNotes(''); }} className="hover:text-primary hover:underline">
                       #{order.id}
                     </button>
                   </td>
                   <td className="px-4 py-3">
                     <div className="font-semibold text-foreground">{order.userName || 'Client invité'}</div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      {order.userEmail}
-                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{order.userEmail}</div>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground text-sm">
+                  <td className="px-4 py-3 text-muted-foreground text-sm whitespace-nowrap">
                     {format(new Date(order.createdAt), 'dd MMM yyyy, HH:mm', { locale: fr })}
-                  </td>
-                  <td className="px-4 py-3 font-bold text-foreground">
-                    {order.total.toLocaleString('fr-DZ')} DA
                   </td>
                   <td className="px-4 py-3">
                     <Select value={order.status} onValueChange={(val) => handleUpdateStatus(order.id, val)}>
@@ -264,8 +315,22 @@ export default function AdminOrders() {
                       </SelectContent>
                     </Select>
                   </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1">
+                      {order.paymentMethod && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          {PAYMENT_METHOD_LABELS[order.paymentMethod]?.icon}
+                          {PAYMENT_METHOD_LABELS[order.paymentMethod]?.label || order.paymentMethod}
+                        </div>
+                      )}
+                      {order.paymentStatus && getPaymentStatusBadge(order.paymentStatus)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 font-bold text-foreground whitespace-nowrap">
+                    {order.total.toLocaleString('fr-DZ')} DA
+                  </td>
                   <td className="px-4 py-3 text-right">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => setSelectedOrder(order)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => { setSelectedOrder(order); setPaymentNotes(''); }}>
                       <Eye className="h-4 w-4" />
                     </Button>
                   </td>
@@ -308,16 +373,17 @@ export default function AdminOrders() {
         )}
       </Card>
 
-      {/* Order Detail Drawer/Dialog */}
+      {/* Order Detail Dialog */}
       <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col bg-background print:max-h-none print:h-auto print:block">
           {selectedOrder && (
             <>
               <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/10 print:hidden shrink-0">
                 <div>
-                  <DialogTitle className="text-xl flex items-center gap-3">
+                  <DialogTitle className="text-xl flex items-center gap-3 flex-wrap">
                     Commande #{selectedOrder.id}
                     {getStatusBadge(selectedOrder.status)}
+                    {selectedOrder.paymentStatus && getPaymentStatusBadge(selectedOrder.paymentStatus)}
                   </DialogTitle>
                   <DialogDescription className="mt-1">
                     Passée le {format(new Date(selectedOrder.createdAt), 'dd MMMM yyyy à HH:mm', { locale: fr })}
@@ -329,11 +395,116 @@ export default function AdminOrders() {
                   </Button>
                 </div>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto p-6 bg-muted/5 print:p-0 print:bg-white print:overflow-visible">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Left Column: Items */}
+                  {/* Left Column: Items + Payment */}
                   <div className="md:col-span-2 space-y-6">
+                    {/* Payment Info */}
+                    <Card className="shadow-sm border-border print:border-none print:shadow-none">
+                      <CardHeader className="py-4 border-b border-border bg-muted/20 print:bg-transparent">
+                        <CardTitle className="text-base font-semibold flex items-center gap-2">
+                          <CreditCard className="h-4 w-4" /> Paiement
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-4">
+                        <div className={cn(
+                          "rounded-xl border p-4",
+                          selectedOrder.paymentStatus === 'awaiting_confirmation' ? "border-amber-200 bg-amber-50 dark:bg-amber-950/20" :
+                          selectedOrder.paymentStatus === 'confirmed' ? "border-green-200 bg-green-50 dark:bg-green-950/20" :
+                          selectedOrder.paymentStatus === 'failed' ? "border-destructive/30 bg-destructive/5" :
+                          "border-border bg-muted/20"
+                        )}>
+                          <div className="flex items-start justify-between gap-4 mb-3">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-muted-foreground font-medium">Mode :</span>
+                                <div className="flex items-center gap-1.5 font-semibold">
+                                  {PAYMENT_METHOD_LABELS[selectedOrder.paymentMethod]?.icon}
+                                  {PAYMENT_METHOD_LABELS[selectedOrder.paymentMethod]?.label || selectedOrder.paymentMethod}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-muted-foreground font-medium">Statut :</span>
+                                {getPaymentStatusBadge(selectedOrder.paymentStatus)}
+                              </div>
+                              {selectedOrder.paymentNotes && (
+                                <div className="text-xs text-muted-foreground italic mt-1">
+                                  Note : {selectedOrder.paymentNotes}
+                                </div>
+                              )}
+                            </div>
+                            {selectedOrder.paymentProofUrl && (
+                              <a
+                                href={selectedOrder.paymentProofUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline shrink-0 border border-primary/30 rounded-lg px-3 py-2 bg-primary/5"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                Voir la preuve
+                              </a>
+                            )}
+                          </div>
+
+                          {selectedOrder.paymentProofUrl && (
+                            <div className="mb-4">
+                              <p className="text-xs text-muted-foreground mb-2 font-medium">Preuve de paiement :</p>
+                              <img
+                                src={selectedOrder.paymentProofUrl}
+                                alt="Preuve de paiement"
+                                className="max-h-48 rounded-lg border border-border object-contain bg-white"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            </div>
+                          )}
+
+                          {(selectedOrder.paymentMethod === 'bank_transfer' || selectedOrder.paymentMethod === 'cib_edahabia') &&
+                           selectedOrder.paymentStatus !== 'confirmed' && (
+                            <div className="border-t border-border/50 pt-3 mt-3 space-y-3">
+                              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Action admin</Label>
+                              <Textarea
+                                placeholder="Note optionnelle (ex: référence de virement reçu...)"
+                                value={paymentNotes}
+                                onChange={(e) => setPaymentNotes(e.target.value)}
+                                rows={2}
+                                className="text-sm resize-none"
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                                  onClick={() => handleUpdatePayment(selectedOrder.id, 'confirmed')}
+                                  disabled={updatePayment.isPending}
+                                >
+                                  <CheckCircle2 className="h-4 w-4" />
+                                  Confirmer le paiement
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-destructive/50 text-destructive hover:bg-destructive/10 gap-1.5"
+                                  onClick={() => handleUpdatePayment(selectedOrder.id, 'failed')}
+                                  disabled={updatePayment.isPending}
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                  Rejeter
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {selectedOrder.paymentStatus === 'confirmed' && (
+                            <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium mt-2 pt-2 border-t border-green-200/50">
+                              <CheckCircle2 className="h-4 w-4" />
+                              Paiement vérifié et confirmé
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Items */}
                     <Card className="shadow-sm border-border print:border-none print:shadow-none">
                       <CardHeader className="py-4 border-b border-border bg-muted/20 print:bg-transparent print:border-b-2 print:border-black">
                         <CardTitle className="text-base font-semibold">Articles commandés ({selectedOrder.items?.length || 0})</CardTitle>
@@ -412,12 +583,6 @@ export default function AdminOrders() {
                           <p className="text-sm text-primary hover:underline cursor-pointer">{selectedOrder.userEmail}</p>
                           <p className="text-sm text-muted-foreground mt-1">{selectedOrder.shippingAddress?.phone}</p>
                         </div>
-                        
-                        {selectedOrder.userId && (
-                          <Button variant="outline" size="sm" className="w-full text-xs" asChild>
-                            <Link href={`/admin/customers?id=${selectedOrder.userId}`}>Voir le profil client</Link>
-                          </Button>
-                        )}
                       </CardContent>
                     </Card>
 
@@ -478,7 +643,6 @@ export default function AdminOrders() {
           )}
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

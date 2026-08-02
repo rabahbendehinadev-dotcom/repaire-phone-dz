@@ -846,6 +846,10 @@ export const ListMyOrdersResponseItem = zod.object({
   "userName": zod.string().nullish(),
   "userEmail": zod.string().nullish(),
   "status": zod.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional(),
+  "paymentStatus": zod.enum(['pending', 'awaiting_confirmation', 'confirmed', 'failed']).optional(),
+  "paymentProofUrl": zod.string().nullish(),
+  "paymentNotes": zod.string().nullish(),
   "items": zod.array(zod.object({
   "productId": zod.number(),
   "name": zod.string(),
@@ -883,7 +887,8 @@ export const CreateOrderBody = zod.object({
   "commune": zod.string().optional(),
   "address": zod.string()
 }),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional()
 })
 
 export const CreateOrderResponse = zod.object({
@@ -892,6 +897,10 @@ export const CreateOrderResponse = zod.object({
   "userName": zod.string().nullish(),
   "userEmail": zod.string().nullish(),
   "status": zod.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional(),
+  "paymentStatus": zod.enum(['pending', 'awaiting_confirmation', 'confirmed', 'failed']).optional(),
+  "paymentProofUrl": zod.string().nullish(),
+  "paymentNotes": zod.string().nullish(),
   "items": zod.array(zod.object({
   "productId": zod.number(),
   "name": zod.string(),
@@ -930,6 +939,10 @@ export const GetOrderResponse = zod.object({
   "userName": zod.string().nullish(),
   "userEmail": zod.string().nullish(),
   "status": zod.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional(),
+  "paymentStatus": zod.enum(['pending', 'awaiting_confirmation', 'confirmed', 'failed']).optional(),
+  "paymentProofUrl": zod.string().nullish(),
+  "paymentNotes": zod.string().nullish(),
   "items": zod.array(zod.object({
   "productId": zod.number(),
   "name": zod.string(),
@@ -1189,6 +1202,7 @@ export const GetAdminDashboardResponse = zod.object({
   "totalProducts": zod.number(),
   "totalCustomers": zod.number(),
   "pendingOrders": zod.number(),
+  "pendingPayments": zod.number().optional(),
   "lowStockCount": zod.number(),
   "recentOrders": zod.array(zod.object({
   "id": zod.number(),
@@ -1196,6 +1210,10 @@ export const GetAdminDashboardResponse = zod.object({
   "userName": zod.string().nullish(),
   "userEmail": zod.string().nullish(),
   "status": zod.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional(),
+  "paymentStatus": zod.enum(['pending', 'awaiting_confirmation', 'confirmed', 'failed']).optional(),
+  "paymentProofUrl": zod.string().nullish(),
+  "paymentNotes": zod.string().nullish(),
   "items": zod.array(zod.object({
   "productId": zod.number(),
   "name": zod.string(),
@@ -1252,7 +1270,8 @@ export const ListAllOrdersQueryParams = zod.object({
   "page": zod.coerce.number().optional(),
   "limit": zod.coerce.number().optional(),
   "status": zod.coerce.string().nullish(),
-  "search": zod.coerce.string().nullish()
+  "search": zod.coerce.string().nullish(),
+  "paymentStatus": zod.coerce.string().nullish()
 })
 
 export const ListAllOrdersResponse = zod.object({
@@ -1262,6 +1281,10 @@ export const ListAllOrdersResponse = zod.object({
   "userName": zod.string().nullish(),
   "userEmail": zod.string().nullish(),
   "status": zod.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional(),
+  "paymentStatus": zod.enum(['pending', 'awaiting_confirmation', 'confirmed', 'failed']).optional(),
+  "paymentProofUrl": zod.string().nullish(),
+  "paymentNotes": zod.string().nullish(),
   "items": zod.array(zod.object({
   "productId": zod.number(),
   "name": zod.string(),
@@ -1308,6 +1331,103 @@ export const UpdateOrderStatusResponse = zod.object({
   "userName": zod.string().nullish(),
   "userEmail": zod.string().nullish(),
   "status": zod.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional(),
+  "paymentStatus": zod.enum(['pending', 'awaiting_confirmation', 'confirmed', 'failed']).optional(),
+  "paymentProofUrl": zod.string().nullish(),
+  "paymentNotes": zod.string().nullish(),
+  "items": zod.array(zod.object({
+  "productId": zod.number(),
+  "name": zod.string(),
+  "price": zod.number(),
+  "quantity": zod.number(),
+  "images": zod.array(zod.string()).optional()
+})).optional(),
+  "subtotal": zod.number(),
+  "discount": zod.number().optional(),
+  "couponCode": zod.string().nullish(),
+  "shipping": zod.number().optional(),
+  "total": zod.number(),
+  "shippingAddress": zod.object({
+  "fullName": zod.string(),
+  "phone": zod.string(),
+  "wilaya": zod.string(),
+  "commune": zod.string().optional(),
+  "address": zod.string()
+}).optional(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Confirm or reject payment (admin)
+ */
+export const UpdateOrderPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateOrderPaymentBody = zod.object({
+  "paymentStatus": zod.enum(['pending', 'awaiting_confirmation', 'confirmed', 'failed']),
+  "paymentNotes": zod.string().optional()
+})
+
+export const UpdateOrderPaymentResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number().optional(),
+  "userName": zod.string().nullish(),
+  "userEmail": zod.string().nullish(),
+  "status": zod.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional(),
+  "paymentStatus": zod.enum(['pending', 'awaiting_confirmation', 'confirmed', 'failed']).optional(),
+  "paymentProofUrl": zod.string().nullish(),
+  "paymentNotes": zod.string().nullish(),
+  "items": zod.array(zod.object({
+  "productId": zod.number(),
+  "name": zod.string(),
+  "price": zod.number(),
+  "quantity": zod.number(),
+  "images": zod.array(zod.string()).optional()
+})).optional(),
+  "subtotal": zod.number(),
+  "discount": zod.number().optional(),
+  "couponCode": zod.string().nullish(),
+  "shipping": zod.number().optional(),
+  "total": zod.number(),
+  "shippingAddress": zod.object({
+  "fullName": zod.string(),
+  "phone": zod.string(),
+  "wilaya": zod.string(),
+  "commune": zod.string().optional(),
+  "address": zod.string()
+}).optional(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Submit payment proof for bank transfer
+ */
+export const SubmitPaymentProofParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SubmitPaymentProofBody = zod.object({
+  "paymentProofUrl": zod.string()
+})
+
+export const SubmitPaymentProofResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number().optional(),
+  "userName": zod.string().nullish(),
+  "userEmail": zod.string().nullish(),
+  "status": zod.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional(),
+  "paymentStatus": zod.enum(['pending', 'awaiting_confirmation', 'confirmed', 'failed']).optional(),
+  "paymentProofUrl": zod.string().nullish(),
+  "paymentNotes": zod.string().nullish(),
   "items": zod.array(zod.object({
   "productId": zod.number(),
   "name": zod.string(),
@@ -1384,6 +1504,10 @@ export const GetCustomerResponse = zod.object({
   "userName": zod.string().nullish(),
   "userEmail": zod.string().nullish(),
   "status": zod.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional(),
+  "paymentStatus": zod.enum(['pending', 'awaiting_confirmation', 'confirmed', 'failed']).optional(),
+  "paymentProofUrl": zod.string().nullish(),
+  "paymentNotes": zod.string().nullish(),
   "items": zod.array(zod.object({
   "productId": zod.number(),
   "name": zod.string(),

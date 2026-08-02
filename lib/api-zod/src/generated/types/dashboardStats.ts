@@ -14,6 +14,7 @@ export interface DashboardStats {
   totalProducts: number;
   totalCustomers: number;
   pendingOrders: number;
+  pendingPayments?: number;
   lowStockCount: number;
   recentOrders: Order[];
   topProducts: Product[];

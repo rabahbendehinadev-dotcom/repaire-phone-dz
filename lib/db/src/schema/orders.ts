@@ -6,6 +6,11 @@ export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   status: text("status").notNull().default("pending"), // pending, confirmed, processing, shipped, delivered, cancelled
+  // payment fields
+  paymentMethod: text("payment_method").notNull().default("cash_on_delivery"), // cash_on_delivery, bank_transfer, cib_edahabia
+  paymentStatus: text("payment_status").notNull().default("pending"), // pending, awaiting_confirmation, confirmed, failed
+  paymentProofUrl: text("payment_proof_url"),
+  paymentNotes: text("payment_notes"),
   subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
   discount: numeric("discount", { precision: 10, scale: 2 }).notNull().default("0"),
   couponCode: text("coupon_code"),

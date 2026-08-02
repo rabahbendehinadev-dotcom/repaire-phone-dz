@@ -2,20 +2,19 @@ import { useState } from 'react';
 import { useGetAdminDashboard, useGetSalesChart } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DollarSign, ShoppingCart, Users, Package, TrendingUp, TrendingDown, AlertTriangle, ArrowRight, Activity, Calendar, ImageIcon, Settings, Ticket } from 'lucide-react';
+import { DollarSign, ShoppingCart, Users, Package, TrendingUp, AlertTriangle, ArrowRight, Activity, Calendar, ImageIcon, Settings, Ticket, CreditCard } from 'lucide-react';
 import { Link } from 'wouter';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 
 export default function AdminDashboard() {
   const { data: stats, isLoading: statsLoading } = useGetAdminDashboard();
-  
+
   const [salesPeriod, setSalesPeriod] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
   const { data: salesData, isLoading: salesLoading } = useGetSalesChart({ period: salesPeriod });
 
@@ -42,11 +41,19 @@ export default function AdminDashboard() {
           <h2 className="text-2xl font-bold tracking-tight">Vue d'ensemble</h2>
           <p className="text-muted-foreground">Voici l'état de votre boutique aujourd'hui.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {stats.pendingOrders > 0 && (
             <Link href="/admin/orders?status=pending">
               <Badge variant="outline" className="bg-warning/10 text-warning-foreground border-warning/20 hover:bg-warning/20 cursor-pointer transition-colors px-3 py-1 text-sm">
                 <Activity className="mr-1.5 h-3.5 w-3.5" /> {stats.pendingOrders} Commande(s) en attente
+              </Badge>
+            </Link>
+          )}
+          {(stats.pendingPayments ?? 0) > 0 && (
+            <Link href="/admin/orders">
+              <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-200 cursor-pointer hover:bg-amber-500/20 transition-colors px-3 py-1 text-sm">
+                <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+                {stats.pendingPayments} paiement(s) à vérifier
               </Badge>
             </Link>
           )}
@@ -195,7 +202,7 @@ export default function AdminDashboard() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={32} 
+                      <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={32}
                         tickFormatter={(value) => format(new Date(value), 'dd MMM', { locale: fr })} />
                       <YAxis yAxisId="left" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `${value >= 1000 ? value / 1000 + 'k' : value}`} />
                       <ChartTooltip content={<ChartTooltipContent labelFormatter={(value) => format(new Date(value), 'dd MMMM yyyy', { locale: fr })} />} />
@@ -289,8 +296,8 @@ export default function AdminDashboard() {
                     </div>
                     <div className="flex flex-col items-end shrink-0">
                       <Badge variant="outline" className={
-                        product.stock <= 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : 
-                        product.stock <= 5 ? 'bg-warning/10 text-warning-foreground border-warning/20' : 
+                        product.stock <= 0 ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                        product.stock <= 5 ? 'bg-warning/10 text-warning-foreground border-warning/20' :
                         'bg-emerald-500/10 text-emerald-600 border-emerald-200'
                       }>
                         {product.stock} stock

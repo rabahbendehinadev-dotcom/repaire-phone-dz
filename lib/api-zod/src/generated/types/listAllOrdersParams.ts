@@ -17,4 +17,8 @@ status?: string | null;
  * @nullable
  */
 search?: string | null;
+/**
+ * @nullable
+ */
+paymentStatus?: string | null;
 };

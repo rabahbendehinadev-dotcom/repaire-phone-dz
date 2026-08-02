@@ -316,6 +316,25 @@ export interface OrderItem {
   images?: string[];
 }
 
+export type PaymentMethod = typeof PaymentMethod[keyof typeof PaymentMethod];
+
+
+export const PaymentMethod = {
+  cash_on_delivery: 'cash_on_delivery',
+  bank_transfer: 'bank_transfer',
+  cib_edahabia: 'cib_edahabia',
+} as const;
+
+export type PaymentStatus = typeof PaymentStatus[keyof typeof PaymentStatus];
+
+
+export const PaymentStatus = {
+  pending: 'pending',
+  awaiting_confirmation: 'awaiting_confirmation',
+  confirmed: 'confirmed',
+  failed: 'failed',
+} as const;
+
 export type OrderStatus = typeof OrderStatus[keyof typeof OrderStatus];
 
 
@@ -344,6 +363,12 @@ export interface Order {
   /** @nullable */
   userEmail?: string | null;
   status: OrderStatus;
+  paymentMethod?: PaymentMethod;
+  paymentStatus?: PaymentStatus;
+  /** @nullable */
+  paymentProofUrl?: string | null;
+  /** @nullable */
+  paymentNotes?: string | null;
   items?: OrderItem[];
   subtotal: number;
   discount?: number;
@@ -361,6 +386,7 @@ export interface Order {
 export interface OrderInput {
   shippingAddress: Address;
   notes?: string;
+  paymentMethod?: PaymentMethod;
 }
 
 export type OrderStatusUpdateStatus = typeof OrderStatusUpdateStatus[keyof typeof OrderStatusUpdateStatus];
@@ -377,6 +403,15 @@ export const OrderStatusUpdateStatus = {
 
 export interface OrderStatusUpdate {
   status: OrderStatusUpdateStatus;
+}
+
+export interface OrderPaymentUpdate {
+  paymentStatus: PaymentStatus;
+  paymentNotes?: string;
+}
+
+export interface PaymentProofInput {
+  paymentProofUrl: string;
 }
 
 export interface OrderListResponse {
@@ -529,6 +564,7 @@ export interface DashboardStats {
   totalProducts: number;
   totalCustomers: number;
   pendingOrders: number;
+  pendingPayments?: number;
   lowStockCount: number;
   recentOrders: Order[];
   topProducts: Product[];
@@ -639,6 +675,10 @@ status?: string | null;
  * @nullable
  */
 search?: string | null;
+/**
+ * @nullable
+ */
+paymentStatus?: string | null;
 };
 
 export type ListCustomersParams = {

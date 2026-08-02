@@ -996,6 +996,10 @@ paths:
           in: query
           schema:
             type: ["string", "null"]
+        - name: paymentStatus
+          in: query
+          schema:
+            type: ["string", "null"]
       responses:
         "200":
           description: OK
@@ -1021,6 +1025,56 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/OrderStatusUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /admin/orders/{id}/payment:
+    patch:
+      operationId: updateOrderPayment
+      tags: [admin]
+      summary: Confirm or reject payment (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderPaymentUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/{id}/payment-proof:
+    patch:
+      operationId: submitPaymentProof
+      tags: [orders]
+      summary: Submit payment proof for bank transfer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentProofInput"
       responses:
         "200":
           description: OK
@@ -1632,6 +1686,14 @@ components:
           items:
             type: string
 
+    PaymentMethod:
+      type: string
+      enum: [cash_on_delivery, bank_transfer, cib_edahabia]
+
+    PaymentStatus:
+      type: string
+      enum: [pending, awaiting_confirmation, confirmed, failed]
+
     Order:
       type: object
       required: [id, status, subtotal, total, createdAt]
@@ -1647,6 +1709,14 @@ components:
         status:
           type: string
           enum: [pending, confirmed, processing, shipped, delivered, cancelled]
+        paymentMethod:
+          $ref: "#/components/schemas/PaymentMethod"
+        paymentStatus:
+          $ref: "#/components/schemas/PaymentStatus"
+        paymentProofUrl:
+          type: ["string", "null"]
+        paymentNotes:
+          type: ["string", "null"]
         items:
           type: array
           items:
@@ -1678,6 +1748,8 @@ components:
           $ref: "#/components/schemas/Address"
         notes:
           type: string
+        paymentMethod:
+          $ref: "#/components/schemas/PaymentMethod"
 
     OrderStatusUpdate:
       type: object
@@ -1686,6 +1758,22 @@ components:
         status:
           type: string
           enum: [pending, confirmed, processing, shipped, delivered, cancelled]
+
+    OrderPaymentUpdate:
+      type: object
+      required: [paymentStatus]
+      properties:
+        paymentStatus:
+          $ref: "#/components/schemas/PaymentStatus"
+        paymentNotes:
+          type: string
+
+    PaymentProofInput:
+      type: object
+      required: [paymentProofUrl]
+      properties:
+        paymentProofUrl:
+          type: string
 
     OrderListResponse:
       type: object
@@ -1916,6 +2004,8 @@ components:
         totalCustomers:
           type: number
         pendingOrders:
+          type: number
+        pendingPayments:
           type: number
         lowStockCount:
           type: number

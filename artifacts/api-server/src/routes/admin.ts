@@ -34,6 +34,7 @@ router.get("/admin/dashboard", requireAdminSession, requirePermission("view_dash
   const [totalOrdersRow] = await db.select({ count: sql<number>`count(*)::int` }).from(ordersTable);
   const [totalSalesRow] = await db.select({ sum: sql<string>`coalesce(sum(total),0)::text` }).from(ordersTable).where(eq(ordersTable.status, "delivered"));
   const [pendingRow] = await db.select({ count: sql<number>`count(*)::int` }).from(ordersTable).where(eq(ordersTable.status, "pending"));
+  const [pendingPaymentsRow] = await db.select({ count: sql<number>`count(*)::int` }).from(ordersTable).where(eq(ordersTable.paymentStatus, "awaiting_confirmation"));
   const [lowStockRow] = await db.select({ count: sql<number>`count(*)::int` }).from(productsTable).where(sql`${productsTable.stock} <= 5`);
 
   const now = new Date();
@@ -53,6 +54,7 @@ router.get("/admin/dashboard", requireAdminSession, requirePermission("view_dash
     totalProducts: totalProductsRow.count,
     totalCustomers: totalCustomersRow.count,
     pendingOrders: pendingRow.count,
+    pendingPayments: pendingPaymentsRow.count,
     lowStockCount: lowStockRow.count,
     recentOrders: recentOrders.map((o) => formatOrder({ ...o.order, userName: o.userName, userEmail: o.userEmail })),
     topProducts: topProducts.map(formatProduct),

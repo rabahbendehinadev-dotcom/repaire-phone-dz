@@ -8,6 +8,8 @@
 import type { Address } from './address';
 import type { OrderItem } from './orderItem';
 import type { OrderStatus } from './orderStatus';
+import type { PaymentMethod } from './paymentMethod';
+import type { PaymentStatus } from './paymentStatus';
 
 export interface Order {
   id: number;
@@ -17,6 +19,12 @@ export interface Order {
   /** @nullable */
   userEmail?: string | null;
   status: OrderStatus;
+  paymentMethod?: PaymentMethod;
+  paymentStatus?: PaymentStatus;
+  /** @nullable */
+  paymentProofUrl?: string | null;
+  /** @nullable */
+  paymentNotes?: string | null;
   items?: OrderItem[];
   subtotal: number;
   discount?: number;

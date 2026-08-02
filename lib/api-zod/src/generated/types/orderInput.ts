@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Address } from './address';
+import type { PaymentMethod } from './paymentMethod';
 
 export interface OrderInput {
   shippingAddress: Address;
   notes?: string;
+  paymentMethod?: PaymentMethod;
 }
