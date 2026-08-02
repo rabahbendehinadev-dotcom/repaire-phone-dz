@@ -1,3 +1,11 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+  <rect width="180" height="180" rx="36" fill="#1A3A6B"/>
+  <!-- Phone body -->
+  <rect x="62" y="38" width="56" height="92" rx="10" fill="white"/>
+  <rect x="68" y="48" width="44" height="68" rx="6" fill="#1A3A6B"/>
+  <!-- Home button -->
+  <circle cx="90" cy="123" r="5" fill="white" opacity="0.6"/>
+  <!-- Wrench overlay -->
+  <path d="M96 72 C102 66 112 66 114 72 C116 78 110 82 106 80 L88 98 C86 100 84 100 82 98 C80 96 80 94 82 92 L100 74 C98 74 96 74 96 72Z" fill="#F97316"/>
+  <circle cx="84" cy="96" r="4" fill="#F97316"/>
 </svg>
