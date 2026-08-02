@@ -43,33 +43,72 @@ export default function Home() {
                 <Skeleton className="w-full aspect-[21/9] md:aspect-[21/7] rounded-none" />
               </div>
             ) : banners?.filter(b => b.isActive).length ? (
-              banners.filter(b => b.isActive).map((banner) => (
-                <div key={banner.id} className="flex-[0_0_100%] min-w-0 relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-navy/90 via-navy/60 to-transparent z-10" />
-                  <img 
-                    src={getImageSrc(banner.imageUrl) || `https://placehold.co/1200x400/1e3a5f/ffffff?text=${encodeURIComponent(banner.title)}`} 
-                    alt={banner.title} 
-                    className="w-full aspect-[4/3] md:aspect-[21/7] object-cover"
-                  />
-                  <div className="absolute inset-0 z-20 flex flex-col justify-center px-6 md:px-16 container mx-auto">
-                    <div className="max-w-xl">
-                      <h2 className="text-3xl md:text-5xl lg:text-6xl font-extrabold text-white mb-4 leading-tight tracking-tight">
-                        {banner.title}
-                      </h2>
-                      {banner.subtitle && (
-                        <p className="text-lg md:text-xl text-white/90 mb-8 font-medium">
-                          {banner.subtitle}
-                        </p>
-                      )}
-                      <Button asChild size="lg" className="bg-secondary hover:bg-secondary/90 text-white font-bold px-8 h-12 md:h-14 text-base shadow-lg shadow-secondary/20">
-                        <Link href={banner.linkUrl || '/products'}>
-                          {banner.buttonText || 'Découvrir'} <ArrowRight className="ml-2 h-5 w-5" />
-                        </Link>
-                      </Button>
-                    </div>
+              banners.filter(b => b.isActive).map((banner) => {
+                const b = banner as any;
+                const desktopSrc = getImageSrc(banner.imageUrl) || `https://placehold.co/1920x700/1e3a5f/ffffff?text=${encodeURIComponent(banner.title)}`;
+                const mobileSrc = getImageSrc(b.mobileImageUrl) || desktopSrc;
+                const showText = b.showOverlayText !== false;
+                const desktopPos = b.desktopPosition || 'left';
+                const mobilePos = b.mobilePosition || 'left';
+                const posClass = (p: string) => p === 'center' ? 'items-center text-center' : p === 'right' ? 'items-end text-right' : 'items-start text-left';
+                return (
+                  <div key={banner.id} className="flex-[0_0_100%] min-w-0 relative">
+                    {/* gradient only when text is shown */}
+                    {showText && <div className="absolute inset-0 bg-gradient-to-r from-navy/80 via-navy/50 to-transparent z-10 hidden md:block" />}
+                    {showText && <div className="absolute inset-0 bg-gradient-to-b from-navy/60 via-navy/30 to-transparent z-10 md:hidden" />}
+
+                    {/* responsive image */}
+                    <picture>
+                      <source media="(max-width: 767px)" srcSet={mobileSrc} />
+                      <img
+                        src={desktopSrc}
+                        alt={banner.title}
+                        className="w-full aspect-[4/5] sm:aspect-[16/9] md:aspect-[21/7] object-cover object-center"
+                      />
+                    </picture>
+
+                    {/* Desktop overlay */}
+                    {showText && (
+                      <div className={`absolute inset-0 z-20 hidden md:flex flex-col justify-center px-16 container mx-auto ${posClass(desktopPos)}`}>
+                        <div className="max-w-xl">
+                          <h2 className="text-4xl lg:text-6xl font-extrabold text-white mb-3 leading-tight tracking-tight drop-shadow-lg">
+                            {banner.title}
+                          </h2>
+                          {banner.subtitle && (
+                            <p className="text-lg text-white/90 mb-6 font-medium drop-shadow">
+                              {banner.subtitle}
+                            </p>
+                          )}
+                          <Button asChild size="lg" className="bg-secondary hover:bg-secondary/90 text-white font-bold px-8 h-12 shadow-lg shadow-secondary/20">
+                            <Link href={banner.linkUrl || '/products'}>
+                              {banner.buttonText || 'Découvrir'} <ArrowRight className="ml-2 h-5 w-5" />
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mobile overlay */}
+                    {showText && (
+                      <div className={`absolute inset-0 z-20 flex md:hidden flex-col justify-end px-4 pb-5 ${posClass(mobilePos)}`}>
+                        <h2 className="text-xl font-extrabold text-white mb-1.5 leading-tight drop-shadow-lg">
+                          {banner.title}
+                        </h2>
+                        {banner.subtitle && (
+                          <p className="text-xs text-white/85 mb-3 font-medium drop-shadow">
+                            {banner.subtitle}
+                          </p>
+                        )}
+                        <Button asChild size="sm" className="bg-secondary hover:bg-secondary/90 text-white font-bold px-5 h-9 text-sm shadow-md self-start">
+                          <Link href={banner.linkUrl || '/products'}>
+                            {banner.buttonText || 'Découvrir'} <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="flex-[0_0_100%] min-w-0 relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-navy/90 to-primary/80 z-10" />
