@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { useCart } from '@/hooks/use-cart-store';
 import { useWishlist } from '@/hooks/use-wishlist';
 import { useAuth } from '@/hooks/use-auth';
+import { useStoreSettings } from '@/hooks/use-store-settings';
 import { 
   ShoppingCart, Heart, User, Search, Menu, 
   Phone, Mail, Facebook, Instagram, Home, LayoutGrid, X
@@ -22,6 +23,8 @@ export function MainLayout({ children }: MainLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const { storeName, phone, email, facebook, instagram, logoUrl, metaDescription } = useStoreSettings();
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -37,23 +40,37 @@ export function MainLayout({ children }: MainLayoutProps) {
     { label: 'Promotions', href: '/products?hasDiscount=true' },
   ];
 
+  // Split storeName into two parts for coloured logo text
+  // e.g. "Repaire Phone DZ" → "Repaire Phone " + "DZ" (last word in secondary colour)
+  const logoWords = storeName.split(' ');
+  const logoMain = logoWords.slice(0, -1).join(' ') || storeName;
+  const logoAccent = logoWords.length > 1 ? logoWords[logoWords.length - 1] : '';
+
+  const currentYear = new Date().getFullYear();
+
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background font-sans selection:bg-primary/20">
       {/* Top Bar - Desktop only */}
       <div className="hidden md:flex h-10 bg-navy text-navy-foreground items-center justify-between px-6 text-sm">
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <Phone className="h-4 w-4 text-secondary" />
-            <span>+213 (0) 555 123 456</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 text-secondary" />
-            <span>contact@repairephone.dz</span>
-          </div>
+          {phone && (
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4 text-secondary" />
+              <span>{phone}</span>
+            </div>
+          )}
+          {email && (
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-secondary" />
+              <span>{email}</span>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-muted-foreground/80">L'équipement professionnel des techniciens</span>
-        </div>
+        {metaDescription && (
+          <div className="flex items-center gap-4">
+            <span className="text-muted-foreground/80">{metaDescription}</span>
+          </div>
+        )}
       </div>
 
       {/* Main Header */}
@@ -66,9 +83,17 @@ export function MainLayout({ children }: MainLayoutProps) {
               <Menu className="h-6 w-6" />
             </Button>
             <Link href="/" className="flex items-center gap-2 cursor-pointer">
-              <span className="font-extrabold text-2xl tracking-tight text-primary">
-                Repaire<span className="text-secondary">DZ</span>
-              </span>
+              {logoUrl ? (
+                <img
+                  src={logoUrl.startsWith('/objects/') ? '/api/storage' + logoUrl : logoUrl}
+                  alt={storeName}
+                  className="h-10 w-auto object-contain"
+                />
+              ) : (
+                <span className="font-extrabold text-2xl tracking-tight text-primary">
+                  {logoMain}<span className="text-secondary">{logoAccent}</span>
+                </span>
+              )}
             </Link>
           </div>
 
@@ -165,19 +190,37 @@ export function MainLayout({ children }: MainLayoutProps) {
         <div className="container mx-auto px-4 py-12 lg:py-16">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
             <div>
-              <span className="font-extrabold text-2xl tracking-tight text-white mb-6 inline-block">
-                Repaire<span className="text-secondary">DZ</span>
-              </span>
-              <p className="text-navy-foreground/70 text-sm mb-6 leading-relaxed">
-                Le premier fournisseur d'outillage et de pièces détachées pour les professionnels de la réparation mobile en Algérie.
-              </p>
+              {logoUrl ? (
+                <img
+                  src={logoUrl.startsWith('/objects/') ? '/api/storage' + logoUrl : logoUrl}
+                  alt={storeName}
+                  className="h-10 w-auto object-contain mb-6 brightness-0 invert"
+                />
+              ) : (
+                <span className="font-extrabold text-2xl tracking-tight text-white mb-6 inline-block">
+                  {logoMain}<span className="text-secondary">{logoAccent}</span>
+                </span>
+              )}
+              {metaDescription && (
+                <p className="text-navy-foreground/70 text-sm mb-6 leading-relaxed">
+                  {metaDescription}
+                </p>
+              )}
               <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" className="rounded-full bg-white/5 hover:bg-primary text-white">
-                  <Facebook className="h-5 w-5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="rounded-full bg-white/5 hover:bg-primary text-white">
-                  <Instagram className="h-5 w-5" />
-                </Button>
+                {facebook && (
+                  <a href={facebook} target="_blank" rel="noopener noreferrer">
+                    <Button variant="ghost" size="icon" className="rounded-full bg-white/5 hover:bg-primary text-white">
+                      <Facebook className="h-5 w-5" />
+                    </Button>
+                  </a>
+                )}
+                {instagram && (
+                  <a href={instagram} target="_blank" rel="noopener noreferrer">
+                    <Button variant="ghost" size="icon" className="rounded-full bg-white/5 hover:bg-primary text-white">
+                      <Instagram className="h-5 w-5" />
+                    </Button>
+                  </a>
+                )}
               </div>
             </div>
             
@@ -204,19 +247,23 @@ export function MainLayout({ children }: MainLayoutProps) {
             <div>
               <h4 className="font-bold text-white mb-6 uppercase tracking-wider text-sm">Contact</h4>
               <ul className="space-y-4">
-                <li className="flex items-start gap-3">
-                  <Phone className="h-5 w-5 text-secondary shrink-0 mt-0.5" />
-                  <span className="text-sm text-navy-foreground/70">+213 (0) 555 123 456<br />Lun-Jeu 9h-18h</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Mail className="h-5 w-5 text-secondary shrink-0 mt-0.5" />
-                  <span className="text-sm text-navy-foreground/70">contact@repairephone.dz</span>
-                </li>
+                {phone && (
+                  <li className="flex items-start gap-3">
+                    <Phone className="h-5 w-5 text-secondary shrink-0 mt-0.5" />
+                    <span className="text-sm text-navy-foreground/70">{phone}</span>
+                  </li>
+                )}
+                {email && (
+                  <li className="flex items-start gap-3">
+                    <Mail className="h-5 w-5 text-secondary shrink-0 mt-0.5" />
+                    <span className="text-sm text-navy-foreground/70">{email}</span>
+                  </li>
+                )}
               </ul>
             </div>
           </div>
           <div className="border-t border-white/10 mt-12 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-navy-foreground/50">© 2026 Repaire Phone DZ. Tous droits réservés.</p>
+            <p className="text-sm text-navy-foreground/50">© {currentYear} {storeName}. Tous droits réservés.</p>
           </div>
         </div>
       </footer>
@@ -229,9 +276,9 @@ export function MainLayout({ children }: MainLayoutProps) {
         </Link>
         <Link href="/categories" className={`flex flex-col items-center justify-center w-16 h-full ${location === '/categories' ? 'text-primary' : 'text-muted-foreground'}`}>
           <LayoutGrid className={`h-5 w-5 mb-1 ${location === '/categories' ? 'fill-primary/20' : ''}`} />
-          <span className="text-[10px] font-semibold">Catégories</span>
+          <span className="text-[10px] font-semibond">Catégories</span>
         </Link>
-        <div className="flex flex-col items-center justify-center w-16 h-full text-muted-foreground" onClick={() => {
+        <div className="flex flex-col items-center justify-center w-16 h-full text-muted-foreground cursor-pointer" onClick={() => {
           window.scrollTo({ top: 0, behavior: 'smooth' });
           const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement;
           if (searchInput) searchInput.focus();
@@ -264,9 +311,17 @@ export function MainLayout({ children }: MainLayoutProps) {
         <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}>
           <div className="absolute top-0 left-0 bottom-0 w-4/5 max-w-sm bg-card shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="h-20 flex items-center justify-between px-6 border-b border-border bg-muted/30">
-              <span className="font-extrabold text-xl tracking-tight text-primary">
-                Repaire<span className="text-secondary">DZ</span>
-              </span>
+              {logoUrl ? (
+                <img
+                  src={logoUrl.startsWith('/objects/') ? '/api/storage' + logoUrl : logoUrl}
+                  alt={storeName}
+                  className="h-8 w-auto object-contain"
+                />
+              ) : (
+                <span className="font-extrabold text-xl tracking-tight text-primary">
+                  {logoMain}<span className="text-secondary">{logoAccent}</span>
+                </span>
+              )}
               <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(false)}>
                 <X className="h-6 w-6" />
               </Button>
@@ -287,18 +342,24 @@ export function MainLayout({ children }: MainLayoutProps) {
                 </div>
               </Link>
             </div>
-            <div className="p-6 bg-navy text-navy-foreground text-sm">
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 text-secondary" />
-                  <span>+213 (0) 555 123 456</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-secondary" />
-                  <span>contact@repairephone.dz</span>
+            {(phone || email) && (
+              <div className="p-6 bg-navy text-navy-foreground text-sm">
+                <div className="flex flex-col gap-3">
+                  {phone && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-4 w-4 text-secondary" />
+                      <span>{phone}</span>
+                    </div>
+                  )}
+                  {email && (
+                    <div className="flex items-center gap-3">
+                      <Mail className="h-4 w-4 text-secondary" />
+                      <span>{email}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
