@@ -1,4 +1,5 @@
 import { useGetProduct, useGetRelatedProducts } from '@workspace/api-client-react';
+import { getImageSrc, getProductImageSrc } from '@/lib/image-utils';
 import { useParams, Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -49,7 +50,9 @@ export default function ProductDetail() {
   }
 
   const inWishlist = isInWishlist(product.id);
-  const images = product.images?.length ? product.images : ['https://placehold.co/800x800/f8fafc/1e3a5f?text=Produit'];
+  const images = product.images?.length
+    ? product.images.map((img: string) => getImageSrc(img) ?? 'https://placehold.co/800x800/f8fafc/1e3a5f?text=Produit')
+    : ['https://placehold.co/800x800/f8fafc/1e3a5f?text=Produit'];
 
   return (
     <div className="container mx-auto px-4 py-6 md:py-10">
@@ -268,7 +271,7 @@ export default function ProductDetail() {
             {relatedProducts.slice(0, 4).map((rel) => (
               <div key={rel.id} onClick={() => setLocation(`/products/${rel.id}`)} className="cursor-pointer group">
                 <div className="aspect-square bg-muted/30 rounded-xl mb-3 p-4 flex items-center justify-center border border-border group-hover:border-primary/50 transition-colors">
-                  <img src={rel.images?.[0] || ''} alt={rel.name} className="max-h-full object-contain group-hover:scale-105 transition-transform" />
+                  <img src={getProductImageSrc(rel.images?.[0])} alt={rel.name} className="max-h-full object-contain group-hover:scale-105 transition-transform" />
                 </div>
                 <h4 className="font-bold text-sm text-foreground line-clamp-2 mb-1 group-hover:text-primary transition-colors">{rel.name}</h4>
                 <div className="font-extrabold text-primary">{rel.price.toLocaleString('fr-DZ')} DA</div>

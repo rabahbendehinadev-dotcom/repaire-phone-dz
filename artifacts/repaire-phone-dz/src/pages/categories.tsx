@@ -1,4 +1,5 @@
 import { useListCategories } from '@workspace/api-client-react';
+import { getImageSrc } from '@/lib/image-utils';
 import { Link } from 'wouter';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,7 +31,7 @@ export default function Categories() {
                 <CardContent className="p-6 flex flex-col items-center text-center h-full relative z-10">
                   <div className="w-20 h-20 mb-5 rounded-full bg-muted/50 flex items-center justify-center group-hover:bg-primary/5 transition-colors duration-300">
                     {cat.imageUrl ? (
-                      <img src={cat.imageUrl} alt={cat.name} className="w-12 h-12 object-contain group-hover:scale-110 transition-transform duration-300" />
+                      <img src={getImageSrc(cat.imageUrl)} alt={cat.name} className="w-12 h-12 object-contain group-hover:scale-110 transition-transform duration-300" />
                     ) : (
                       <Wrench className="h-8 w-8 text-muted-foreground/50 group-hover:text-primary/50 transition-colors" />
                     )}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useListBrands, useCreateBrand, useUpdateBrand, useDeleteBrand } from '@workspace/api-client-react';
 import { ImageUpload } from '@/components/admin/image-upload';
+import { getImageSrc } from '@/lib/image-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -177,7 +178,7 @@ export default function AdminBrands() {
                   <td className="px-4 py-3">
                     <div className="w-10 h-10 rounded-md bg-white p-1 flex items-center justify-center border border-border overflow-hidden">
                       {brand.logoUrl ? (
-                        <img src={brand.logoUrl} alt="" className="w-full h-full object-contain" />
+                        <img src={getImageSrc(brand.logoUrl)} alt="" className="w-full h-full object-contain" />
                       ) : (
                         <Tag className="h-4 w-4 text-muted-foreground/50" />
                       )}

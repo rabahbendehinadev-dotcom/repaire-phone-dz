@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useListBanners, useCreateBanner, useUpdateBanner, useDeleteBanner } from '@workspace/api-client-react';
 import { ImageUpload } from '@/components/admin/image-upload';
+import { getImageSrc } from '@/lib/image-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -187,7 +188,7 @@ export default function AdminBanners() {
           <Card key={banner.id} className={`border-border shadow-sm overflow-hidden transition-all hover:border-primary/50 ${!banner.isActive ? 'opacity-70 grayscale-[30%]' : ''}`}>
             <div className="h-40 w-full bg-muted flex items-center justify-center relative overflow-hidden group">
               {banner.imageUrl ? (
-                <img src={banner.imageUrl} alt={banner.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                <img src={getImageSrc(banner.imageUrl)} alt={banner.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
               ) : (
                 <ImageIcon className="h-10 w-10 text-muted-foreground/30" />
               )}

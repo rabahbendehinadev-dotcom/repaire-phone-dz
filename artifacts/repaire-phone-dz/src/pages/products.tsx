@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
+import { getProductImageSrc } from '@/lib/image-utils';
 import { useListProducts, useListCategories, useListBrands } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -304,7 +305,7 @@ function ProductCard({ product }: { product: any }) {
           </button>
           
           <img 
-            src={product.images?.[0] || 'https://placehold.co/400x400/f8fafc/1e3a5f?text=Produit'} 
+            src={getProductImageSrc(product.images?.[0])} 
             alt={product.name}
             className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
           />

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useListCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from '@workspace/api-client-react';
 import { ImageUpload } from '@/components/admin/image-upload';
+import { getImageSrc } from '@/lib/image-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -185,7 +186,7 @@ export default function AdminCategories() {
                   <td className="px-4 py-3">
                     <div className="w-10 h-10 rounded-md bg-muted p-1 flex items-center justify-center border border-border overflow-hidden">
                       {category.imageUrl ? (
-                        <img src={category.imageUrl} alt="" className="w-full h-full object-cover mix-blend-multiply dark:mix-blend-normal" />
+                        <img src={getImageSrc(category.imageUrl)} alt="" className="w-full h-full object-cover mix-blend-multiply dark:mix-blend-normal" />
                       ) : (
                         <Tag className="h-4 w-4 text-muted-foreground/50" />
                       )}

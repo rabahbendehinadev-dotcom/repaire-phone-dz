@@ -1,5 +1,6 @@
 import { useListBanners, useListCategories, useListProducts, useListBrands } from '@workspace/api-client-react';
 import { Link } from 'wouter';
+import { getImageSrc, getProductImageSrc } from '@/lib/image-utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -46,7 +47,7 @@ export default function Home() {
                 <div key={banner.id} className="flex-[0_0_100%] min-w-0 relative">
                   <div className="absolute inset-0 bg-gradient-to-r from-navy/90 via-navy/60 to-transparent z-10" />
                   <img 
-                    src={banner.imageUrl || `https://placehold.co/1200x400/1e3a5f/ffffff?text=${encodeURIComponent(banner.title)}`} 
+                    src={getImageSrc(banner.imageUrl) || `https://placehold.co/1200x400/1e3a5f/ffffff?text=${encodeURIComponent(banner.title)}`} 
                     alt={banner.title} 
                     className="w-full aspect-[4/3] md:aspect-[21/7] object-cover"
                   />
@@ -155,7 +156,7 @@ export default function Home() {
                   <CardContent className="p-4 flex flex-col items-center justify-center h-full text-center relative">
                     <div className="w-16 h-16 md:w-20 md:h-20 mb-3 md:mb-4 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
                       {cat.imageUrl ? (
-                        <img src={cat.imageUrl} alt={cat.name} className="w-10 h-10 md:w-12 md:h-12 object-contain" />
+                        <img src={getImageSrc(cat.imageUrl)} alt={cat.name} className="w-10 h-10 md:w-12 md:h-12 object-contain" />
                       ) : (
                         <Wrench className="h-8 w-8 text-muted-foreground/50" />
                       )}
@@ -247,7 +248,7 @@ export default function Home() {
               brands?.slice(0, 6).map((brand) => (
                 <div key={brand.id} className="h-8 md:h-12 flex items-center justify-center min-w-[100px]">
                   {brand.logoUrl ? (
-                    <img src={brand.logoUrl} alt={brand.name} className="max-h-full max-w-full object-contain" />
+                    <img src={getImageSrc(brand.logoUrl)} alt={brand.name} className="max-h-full max-w-full object-contain" />
                   ) : (
                     <span className="font-extrabold text-xl tracking-tight text-foreground">{brand.name}</span>
                   )}
