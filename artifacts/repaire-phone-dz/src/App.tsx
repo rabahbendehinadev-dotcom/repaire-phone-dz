@@ -7,6 +7,7 @@ import { AdminAuthProvider } from '@/hooks/use-admin-auth';
 import { CartProvider } from '@/hooks/use-cart-store';
 import { WishlistProvider } from '@/hooks/use-wishlist';
 import { MainLayout } from '@/components/layout/main-layout';
+import { ScrollToTop } from '@/components/scroll-to-top';
 import { AdminLayout } from '@/components/layout/admin-layout';
 import NotFound from '@/pages/not-found';
 
@@ -125,6 +126,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+        <ScrollToTop />
         <AppRouter />
         <Toaster />
         <SonnerToaster position="top-right" richColors />
