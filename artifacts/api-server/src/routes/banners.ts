@@ -8,7 +8,9 @@ const router: IRouter = Router();
 const BANNER_FIELDS = [
   "title", "subtitle", "imageUrl", "mobileImageUrl",
   "linkUrl", "buttonText", "isActive", "sortOrder",
-  "desktopPosition", "mobilePosition", "showOverlayText",
+  "desktopPosition", "mobilePosition",
+  "showTitleDesktop", "showButtonDesktop",
+  "showTitleMobile", "showButtonMobile",
 ];
 
 router.get("/banners", async (_req, res): Promise<void> => {

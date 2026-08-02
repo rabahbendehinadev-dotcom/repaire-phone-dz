@@ -46,64 +46,85 @@ export default function Home() {
               banners.filter(b => b.isActive).map((banner) => {
                 const b = banner as any;
                 const desktopSrc = getImageSrc(banner.imageUrl) || `https://placehold.co/1920x700/1e3a5f/ffffff?text=${encodeURIComponent(banner.title)}`;
+                // mobileImageUrl is used on screens < 768px via the <source> element below
                 const mobileSrc = getImageSrc(b.mobileImageUrl) || desktopSrc;
-                const showText = b.showOverlayText !== false;
                 const desktopPos = b.desktopPosition || 'left';
                 const mobilePos = b.mobilePosition || 'left';
+                const showTitleDesktop  = b.showTitleDesktop  !== false;
+                const showButtonDesktop = b.showButtonDesktop !== false;
+                const showTitleMobile   = b.showTitleMobile   !== false;
+                const showButtonMobile  = b.showButtonMobile  !== false;
+                const hasDesktopOverlay = showTitleDesktop || showButtonDesktop;
+                const hasMobileOverlay  = showTitleMobile  || showButtonMobile;
                 const posClass = (p: string) => p === 'center' ? 'items-center text-center' : p === 'right' ? 'items-end text-right' : 'items-start text-left';
                 return (
                   <div key={banner.id} className="flex-[0_0_100%] min-w-0 relative">
-                    {/* gradient only when text is shown */}
-                    {showText && <div className="absolute inset-0 bg-gradient-to-r from-navy/80 via-navy/50 to-transparent z-10 hidden md:block" />}
-                    {showText && <div className="absolute inset-0 bg-gradient-to-b from-navy/60 via-navy/30 to-transparent z-10 md:hidden" />}
+                    {/* gradients only when overlay text is visible */}
+                    {hasDesktopOverlay && <div className="absolute inset-0 bg-gradient-to-r from-navy/80 via-navy/50 to-transparent z-10 hidden md:block" />}
+                    {hasMobileOverlay  && <div className="absolute inset-0 bg-gradient-to-b from-navy/60 via-navy/30 to-transparent z-10 md:hidden" />}
 
-                    {/* responsive image */}
+                    {/* Responsive image
+                        – mobile: <source media="(max-width: 767px)"> uses mobileImageUrl
+                        – desktop: <img src> uses imageUrl (desktopSrc) */}
                     <picture>
                       <source media="(max-width: 767px)" srcSet={mobileSrc} />
                       <img
                         src={desktopSrc}
                         alt={banner.title}
-                        className="w-full aspect-[4/5] sm:aspect-[16/9] md:aspect-[21/7] object-cover object-center"
+                        className="w-full object-cover object-center md:aspect-[21/7]"
+                        style={{ minHeight: '360px', maxHeight: '520px' } as React.CSSProperties}
                       />
                     </picture>
 
-                    {/* Desktop overlay */}
-                    {showText && (
+                    {/* Desktop overlay — hidden on mobile */}
+                    {hasDesktopOverlay && (
                       <div className={`absolute inset-0 z-20 hidden md:flex flex-col justify-center px-16 container mx-auto ${posClass(desktopPos)}`}>
                         <div className="max-w-xl">
-                          <h2 className="text-4xl lg:text-6xl font-extrabold text-white mb-3 leading-tight tracking-tight drop-shadow-lg">
-                            {banner.title}
-                          </h2>
-                          {banner.subtitle && (
-                            <p className="text-lg text-white/90 mb-6 font-medium drop-shadow">
-                              {banner.subtitle}
-                            </p>
+                          {showTitleDesktop && (
+                            <>
+                              <h2 className="text-4xl lg:text-6xl font-extrabold text-white mb-3 leading-tight tracking-tight drop-shadow-lg">
+                                {banner.title}
+                              </h2>
+                              {banner.subtitle && (
+                                <p className="text-lg text-white/90 mb-6 font-medium drop-shadow">
+                                  {banner.subtitle}
+                                </p>
+                              )}
+                            </>
                           )}
-                          <Button asChild size="lg" className="bg-secondary hover:bg-secondary/90 text-white font-bold px-8 h-12 shadow-lg shadow-secondary/20">
-                            <Link href={banner.linkUrl || '/products'}>
-                              {banner.buttonText || 'Découvrir'} <ArrowRight className="ml-2 h-5 w-5" />
-                            </Link>
-                          </Button>
+                          {showButtonDesktop && (
+                            <Button asChild size="lg" className="bg-secondary hover:bg-secondary/90 text-white font-bold px-8 h-12 shadow-lg shadow-secondary/20">
+                              <Link href={banner.linkUrl || '/products'}>
+                                {banner.buttonText || 'Découvrir'} <ArrowRight className="ml-2 h-5 w-5" />
+                              </Link>
+                            </Button>
+                          )}
                         </div>
                       </div>
                     )}
 
-                    {/* Mobile overlay */}
-                    {showText && (
+                    {/* Mobile overlay — hidden on desktop */}
+                    {hasMobileOverlay && (
                       <div className={`absolute inset-0 z-20 flex md:hidden flex-col justify-end px-4 pb-5 ${posClass(mobilePos)}`}>
-                        <h2 className="text-xl font-extrabold text-white mb-1.5 leading-tight drop-shadow-lg">
-                          {banner.title}
-                        </h2>
-                        {banner.subtitle && (
-                          <p className="text-xs text-white/85 mb-3 font-medium drop-shadow">
-                            {banner.subtitle}
-                          </p>
+                        {showTitleMobile && (
+                          <>
+                            <h2 className="text-xl font-extrabold text-white mb-1.5 leading-tight drop-shadow-lg">
+                              {banner.title}
+                            </h2>
+                            {banner.subtitle && (
+                              <p className="text-xs text-white/85 mb-3 font-medium drop-shadow">
+                                {banner.subtitle}
+                              </p>
+                            )}
+                          </>
                         )}
-                        <Button asChild size="sm" className="bg-secondary hover:bg-secondary/90 text-white font-bold px-5 h-9 text-sm shadow-md self-start">
-                          <Link href={banner.linkUrl || '/products'}>
-                            {banner.buttonText || 'Découvrir'} <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                          </Link>
-                        </Button>
+                        {showButtonMobile && (
+                          <Button asChild size="sm" className="bg-secondary hover:bg-secondary/90 text-white font-bold px-5 h-9 text-sm shadow-md self-start">
+                            <Link href={banner.linkUrl || '/products'}>
+                              {banner.buttonText || 'Découvrir'} <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                            </Link>
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
