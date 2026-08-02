@@ -1,47 +1,64 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useListProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useListCategories, useListBrands } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter, SheetDescription } from '@/components/ui/sheet';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Search, Edit, Trash2, Image as ImageIcon, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Image as ImageIcon, CheckCircle2, AlertCircle, Package, MoreHorizontal, FileDown, Eye, CheckSquare, Square } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Skeleton } from '@/components/ui/skeleton';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { getListProductsQueryKey } from '@workspace/api-client-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const productSchema = z.object({
-  name: z.string().min(2, "Nom requis"),
-  price: z.coerce.number().min(0, "Prix invalide"),
-  stock: z.coerce.number().min(0, "Stock invalide"),
+  name: z.string().min(2, "Le nom est requis"),
+  description: z.string().optional(),
+  price: z.coerce.number().min(1, "Le prix doit être supérieur à 0"),
+  comparePrice: z.coerce.number().optional().nullable(),
+  stock: z.coerce.number().min(0, "Le stock ne peut pas être négatif"),
   categoryId: z.coerce.number().nullable().optional(),
   brandId: z.coerce.number().nullable().optional(),
   sku: z.string().optional(),
+  barcode: z.string().optional(),
   isNew: z.boolean().default(false),
   isFeatured: z.boolean().default(false),
+  hasDiscount: z.boolean().default(false),
+  images: z.array(z.string()).optional(),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
 export default function AdminProducts() {
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [search, setSearch] = useState('');
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(new Set());
   
   const queryClient = useQueryClient();
   
-  const { data: productsData, isLoading } = useListProducts({ 
+  const queryParams = { 
     page, 
-    limit: 20,
-    search: search || null
-  });
+    limit,
+    search: search || undefined,
+    categoryId: categoryFilter !== 'all' ? Number(categoryFilter) : undefined
+  };
   
+  const { data: productsData, isLoading } = useListProducts(queryParams, { query: { queryKey: getListProductsQueryKey(queryParams) } });
   const { data: categories } = useListCategories();
   const { data: brands } = useListBrands();
 
@@ -53,421 +70,299 @@ export default function AdminProducts() {
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: '',
+      description: '',
       price: 0,
       stock: 0,
       sku: '',
+      barcode: '',
       isNew: false,
       isFeatured: false,
+      hasDiscount: false,
+      images: [],
     },
   });
 
-  const handleCreate = async (data: ProductFormValues) => {
+  const onSubmit = async (data: ProductFormValues) => {
     try {
-      await createProduct.mutateAsync({ data: data as any });
-      toast.success('Produit créé avec succès');
-      setIsCreateOpen(false);
-      form.reset();
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-    } catch (err: any) {
-      toast.error('Erreur lors de la création');
-    }
-  };
-
-  const handleUpdate = async (data: ProductFormValues) => {
-    if (!editingProduct) return;
-    try {
-      await updateProduct.mutateAsync({ id: editingProduct.id, data: data as any });
-      toast.success('Produit mis à jour avec succès');
+      if (editingProduct) {
+        await updateProduct.mutateAsync({ id: editingProduct.id, data: data as any });
+        toast.success('Produit mis à jour avec succès');
+      } else {
+        await createProduct.mutateAsync({ data: data as any });
+        toast.success('Produit créé avec succès');
+      }
+      setIsSheetOpen(false);
       setEditingProduct(null);
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+      form.reset();
+      queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
     } catch (err: any) {
-      toast.error('Erreur lors de la mise à jour');
+      toast.error(editingProduct ? 'Erreur lors de la mise à jour' : 'Erreur lors de la création');
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) return;
+  const handleDelete = async () => {
+    if (!deleteConfirmId) return;
     try {
-      await deleteProduct.mutateAsync({ id });
-      toast.success('Produit supprimé');
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+      await deleteProduct.mutateAsync({ id: deleteConfirmId });
+      toast.success('Produit supprimé avec succès');
+      queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
     } catch (err: any) {
       toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeleteConfirmId(null);
     }
+  };
+
+  const openCreate = () => {
+    setEditingProduct(null);
+    form.reset({
+      name: '',
+      description: '',
+      price: 0,
+      stock: 0,
+      sku: '',
+      barcode: '',
+      isNew: false,
+      isFeatured: false,
+      hasDiscount: false,
+      images: [],
+    });
+    setIsSheetOpen(true);
   };
 
   const openEdit = (product: any) => {
+    setEditingProduct(product);
     form.reset({
       name: product.name,
+      description: product.description || '',
       price: product.price,
+      comparePrice: product.comparePrice,
       stock: product.stock,
       sku: product.sku || '',
+      barcode: product.barcode || '',
       categoryId: product.categoryId,
       brandId: product.brandId,
       isNew: product.isNew,
       isFeatured: product.isFeatured,
+      hasDiscount: product.hasDiscount,
+      images: product.images || [],
     });
-    setEditingProduct(product);
+    setIsSheetOpen(true);
+  };
+
+  const toggleRowSelection = (id: number) => {
+    const newSet = new Set(selectedRowIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedRowIds(newSet);
+  };
+
+  const toggleAllSelection = () => {
+    if (selectedRowIds.size === productsData?.products?.length) {
+      setSelectedRowIds(new Set());
+    } else {
+      setSelectedRowIds(new Set(productsData?.products?.map(p => p.id) || []));
+    }
+  };
+
+  const exportCSV = () => {
+    if (!productsData?.products?.length) return;
+    const headers = ['ID', 'Nom', 'SKU', 'Prix', 'Stock', 'Catégorie', 'Marque'];
+    const rows = productsData.products.map(p => [
+      p.id,
+      `"${p.name.replace(/"/g, '""')}"`,
+      `"${p.sku || ''}"`,
+      p.price,
+      p.stock,
+      `"${p.categoryName || ''}"`,
+      `"${p.brandName || ''}"`
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', 'produits.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold tracking-tight">Gestion des Produits</h2>
-        
-        <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if(!open) form.reset(); }}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90">
-              <Plus className="h-4 w-4 mr-2" /> Nouveau Produit
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Ajouter un nouveau produit</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleCreate)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nom du produit</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="price"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Prix (DA)</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="stock"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Stock</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="categoryId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Catégorie</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Sélectionner..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {categories?.map(c => (
-                              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="brandId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Marque</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Sélectionner..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {brands?.map(b => (
-                              <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="flex gap-6 pt-4">
-                  <FormField
-                    control={form.control}
-                    name="isNew"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm flex-1">
-                        <div className="space-y-0.5">
-                          <FormLabel>Nouveauté</FormLabel>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="isFeatured"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm flex-1">
-                        <div className="space-y-0.5">
-                          <FormLabel>Mettre en avant</FormLabel>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="flex justify-end pt-4">
-                  <Button type="submit" disabled={createProduct.isPending}>
-                    {createProduct.isPending ? 'Création...' : 'Créer le produit'}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-
-        {/* Edit Dialog */}
-        <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Modifier le produit</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleUpdate)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nom du produit</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="price"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Prix (DA)</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="stock"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Stock</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="categoryId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Catégorie</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Sélectionner..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="null">Aucune</SelectItem>
-                            {categories?.map(c => (
-                              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="brandId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Marque</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Sélectionner..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="null">Aucune</SelectItem>
-                            {brands?.map(b => (
-                              <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="flex gap-6 pt-4">
-                  <FormField
-                    control={form.control}
-                    name="isNew"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm flex-1">
-                        <div className="space-y-0.5">
-                          <FormLabel>Nouveauté</FormLabel>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="isFeatured"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm flex-1">
-                        <div className="space-y-0.5">
-                          <FormLabel>Mettre en avant</FormLabel>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="flex justify-end pt-4">
-                  <Button type="submit" disabled={updateProduct.isPending}>
-                    {updateProduct.isPending ? 'Mise à jour...' : 'Enregistrer'}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Catalogue Produits</h2>
+          <p className="text-muted-foreground text-sm">Gérez vos produits, prix et inventaire.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" className="shadow-sm bg-background" onClick={exportCSV} disabled={!productsData?.products?.length}>
+            <FileDown className="mr-2 h-4 w-4" /> Exporter
+          </Button>
+          <Button onClick={openCreate} className="shadow-sm">
+            <Plus className="mr-2 h-4 w-4" /> Ajouter un produit
+          </Button>
+        </div>
       </div>
 
-      <Card className="border-border shadow-sm">
-        <div className="p-4 border-b border-border flex items-center gap-4 bg-muted/20">
-          <div className="relative flex-1 max-w-sm">
+      <Card className="border-border shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-border bg-muted/20 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="relative w-full md:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Rechercher par nom, SKU..." 
+              placeholder="Rechercher un produit (Nom, SKU)..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-background border-border"
+              className="pl-9 bg-background shadow-sm border-border h-9"
             />
           </div>
-          <div className="text-sm text-muted-foreground font-medium">
-            {productsData?.total || 0} produits trouvés
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full md:w-[200px] h-9 bg-background shadow-sm">
+                <SelectValue placeholder="Catégorie" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les catégories</SelectItem>
+                {categories?.map(c => (
+                  <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {selectedRowIds.size > 0 && (
+          <div className="bg-primary/5 border-b border-border px-4 py-2 flex items-center justify-between animate-in slide-in-from-top-2">
+            <span className="text-sm font-medium text-primary">{selectedRowIds.size} sélectionné(s)</span>
+            <div className="flex gap-2">
+              <Button variant="destructive" size="sm" className="h-8 text-xs shadow-sm">
+                <Trash2 className="mr-2 h-3.5 w-3.5" /> Supprimer
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setSelectedRowIds(new Set())}>
+                Annuler
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-x-auto min-h-[400px]">
           <table className="w-full text-sm text-left">
-            <thead className="text-xs text-muted-foreground uppercase bg-muted/30 border-b border-border">
+            <thead className="text-xs text-muted-foreground uppercase bg-muted/40 border-b border-border sticky top-0 z-10">
               <tr>
+                <th className="px-4 py-3 w-[40px]">
+                  <button onClick={toggleAllSelection} className="text-muted-foreground hover:text-foreground focus:outline-none">
+                    {selectedRowIds.size === productsData?.products?.length && productsData?.products?.length > 0 ? (
+                      <CheckSquare className="h-4 w-4 text-primary" />
+                    ) : selectedRowIds.size > 0 ? (
+                      <div className="relative h-4 w-4 border rounded bg-primary border-primary flex items-center justify-center">
+                        <div className="h-0.5 w-2 bg-primary-foreground rounded-full"></div>
+                      </div>
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )}
+                  </button>
+                </th>
+                <th className="px-4 py-3 font-semibold w-12">Img</th>
                 <th className="px-4 py-3 font-semibold">Produit</th>
-                <th className="px-4 py-3 font-semibold">SKU</th>
+                <th className="px-4 py-3 font-semibold">Catégorie</th>
                 <th className="px-4 py-3 font-semibold">Prix</th>
                 <th className="px-4 py-3 font-semibold">Stock</th>
-                <th className="px-4 py-3 font-semibold">Catégorie</th>
+                <th className="px-4 py-3 font-semibold">Statut</th>
                 <th className="px-4 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="divide-y divide-border bg-background">
               {isLoading ? (
-                Array(5).fill(0).map((_, i) => (
+                Array(10).fill(0).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={6} className="px-4 py-4"><div className="h-6 bg-muted rounded animate-pulse w-full"></div></td>
+                    <td className="px-4 py-4"><Skeleton className="h-4 w-4" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-10 w-10 rounded" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-4 w-48" /><Skeleton className="h-3 w-24 mt-1" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-4 w-24" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-6 w-16 rounded-full" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-4 w-16" /></td>
+                    <td className="px-4 py-4 text-right"><Skeleton className="h-8 w-8 ml-auto" /></td>
                   </tr>
                 ))
-              ) : productsData?.products.map((product) => (
-                <tr key={product.id} className="hover:bg-muted/10 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded bg-muted/50 p-1 flex items-center justify-center shrink-0 border border-border">
-                        {product.images?.[0] ? (
-                          <img src={product.images[0]} alt="" className="max-h-full object-contain" />
-                        ) : (
-                          <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="font-bold text-foreground line-clamp-1">{product.name}</div>
+              ) : productsData?.products?.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-16 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <Package className="h-12 w-12 mb-4 text-muted-foreground/30" />
+                      <p className="text-lg font-medium text-foreground">Aucun produit trouvé</p>
+                      <p className="text-sm mt-1">Commencez par ajouter un nouveau produit.</p>
+                      <Button variant="outline" className="mt-4" onClick={openCreate}>Ajouter un produit</Button>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{product.sku || '-'}</td>
-                  <td className="px-4 py-3 font-bold">{product.price.toLocaleString('fr-DZ')} DA</td>
+                </tr>
+              ) : productsData?.products.map((product) => (
+                <tr key={product.id} className={`hover:bg-muted/30 transition-colors ${selectedRowIds.has(product.id) ? 'bg-primary/5' : ''}`}>
                   <td className="px-4 py-3">
-                    <Badge variant="outline" className={`
-                      ${product.stock > 10 ? 'bg-green-500/10 text-green-600 border-green-200' : ''}
+                    <button onClick={() => toggleRowSelection(product.id)} className="text-muted-foreground hover:text-foreground focus:outline-none">
+                      {selectedRowIds.has(product.id) ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="w-10 h-10 rounded-md bg-muted p-1 flex items-center justify-center border border-border overflow-hidden">
+                      {product.images?.[0] ? (
+                        <img src={product.images[0]} alt="" className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal" />
+                      ) : (
+                        <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-foreground line-clamp-1">{product.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5 font-mono">{product.sku || 'Sans SKU'}</div>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-sm">
+                    {product.categoryName || '-'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-bold text-foreground">{product.price.toLocaleString('fr-DZ')} DA</div>
+                    {product.comparePrice && product.comparePrice > product.price && (
+                      <div className="text-xs text-muted-foreground line-through">{product.comparePrice.toLocaleString('fr-DZ')} DA</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge variant="outline" className={`px-2 py-0.5 text-xs font-semibold
+                      ${product.stock > 10 ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : ''}
                       ${product.stock > 0 && product.stock <= 10 ? 'bg-warning/10 text-warning-foreground border-warning/20' : ''}
-                      ${product.stock === 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : ''}
+                      ${product.stock <= 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : ''}
                     `}>
                       {product.stock}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{product.categoryName || '-'}</td>
-                  <td className="px-4 py-3 text-right space-x-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(product)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(product.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1">
+                      {product.isFeatured && <Badge variant="secondary" className="text-[10px] py-0 leading-none h-4 w-fit">En avant</Badge>}
+                      {product.isNew && <Badge variant="outline" className="text-[10px] py-0 leading-none h-4 w-fit bg-primary/5 text-primary border-primary/20">Nouveau</Badge>}
+                      {(!product.isFeatured && !product.isNew) && <span className="text-muted-foreground text-xs">-</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-[160px]">
+                        <DropdownMenuItem onClick={() => openEdit(product)}>
+                          <Edit className="mr-2 h-4 w-4" /> Modifier
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <a href={`/products/${product.slug}`} target="_blank" rel="noopener noreferrer" className="w-full flex items-center cursor-pointer">
+                            <Eye className="mr-2 h-4 w-4" /> Voir sur le site
+                          </a>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setDeleteConfirmId(product.id)} className="text-destructive focus:bg-destructive/10">
+                          <Trash2 className="mr-2 h-4 w-4" /> Supprimer
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               ))}
@@ -475,31 +370,272 @@ export default function AdminProducts() {
           </table>
         </div>
 
-        {/* Basic Pagination */}
         {productsData && productsData.totalPages > 1 && (
-          <div className="p-4 border-t border-border flex items-center justify-between bg-muted/10">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              Précédent
-            </Button>
-            <span className="text-sm font-medium text-muted-foreground">
-              Page {page} sur {productsData.totalPages}
-            </span>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setPage(p => Math.min(productsData.totalPages, p + 1))}
-              disabled={page === productsData.totalPages}
-            >
-              Suivant
-            </Button>
+          <div className="p-4 border-t border-border flex items-center justify-between bg-muted/5">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Afficher</span>
+              <Select value={limit.toString()} onValueChange={(v) => { setLimit(Number(v)); setPage(1); }}>
+                <SelectTrigger className="h-8 w-[70px] bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-muted-foreground">
+                Page {page} sur {productsData.totalPages} ({productsData.total} produits)
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="h-8">Précédent</Button>
+                <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(productsData.totalPages, p + 1))} disabled={page === productsData.totalPages} className="h-8">Suivant</Button>
+              </div>
+            </div>
           </div>
         )}
       </Card>
+
+      {/* Create / Edit Sheet */}
+      <Sheet open={isSheetOpen} onOpenChange={(open) => { setIsSheetOpen(open); if (!open) setTimeout(() => form.reset(), 300); }}>
+        <SheetContent className="w-full sm:max-w-xl overflow-y-auto sm:w-[540px] flex flex-col p-0">
+          <div className="p-6 border-b border-border bg-muted/10 shrink-0">
+            <SheetHeader>
+              <SheetTitle className="text-xl">{editingProduct ? 'Modifier le produit' : 'Ajouter un produit'}</SheetTitle>
+              <SheetDescription>
+                Remplissez les détails du produit. Les champs marqués d'un astérisque (*) sont obligatoires.
+              </SheetDescription>
+            </SheetHeader>
+          </div>
+          
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1">
+              <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-foreground border-b border-border pb-2 text-sm uppercase tracking-wider">Informations générales</h3>
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nom du produit *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: Écran iPhone 13 Pro Max" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Description détaillée du produit..." className="min-h-[100px] resize-none" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="categoryId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Catégorie</FormLabel>
+                          <Select onValueChange={(val) => field.onChange(val === "null" ? null : Number(val))} value={field.value?.toString() || "null"}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sélectionner" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="null">Aucune</SelectItem>
+                              {categories?.map(c => (
+                                <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="brandId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Marque</FormLabel>
+                          <Select onValueChange={(val) => field.onChange(val === "null" ? null : Number(val))} value={field.value?.toString() || "null"}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sélectionner" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="null">Aucune</SelectItem>
+                              {brands?.map(b => (
+                                <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4">
+                  <h3 className="font-semibold text-foreground border-b border-border pb-2 text-sm uppercase tracking-wider">Prix & Inventaire</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="price"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Prix de vente (DA) *</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="comparePrice"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Prix comparé (DA)</FormLabel>
+                          <FormControl>
+                            <Input type="number" value={field.value || ''} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)} placeholder="Ancien prix" />
+                          </FormControl>
+                          <FormDescription className="text-[10px]">Affiché barré si supérieur au prix de vente.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="stock"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Stock actuel *</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="sku"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>SKU (Référence)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ex: IP13-SCR-ORG" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4">
+                  <h3 className="font-semibold text-foreground border-b border-border pb-2 text-sm uppercase tracking-wider">Mise en avant</h3>
+                  <div className="flex flex-col gap-3">
+                    <FormField
+                      control={form.control}
+                      name="isNew"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-sm font-medium">Nouveauté</FormLabel>
+                            <FormDescription className="text-xs">Afficher le badge "Nouveau" sur ce produit.</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="isFeatured"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-sm font-medium">Mettre en avant</FormLabel>
+                            <FormDescription className="text-xs">Afficher sur la page d'accueil.</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="hasDiscount"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-sm font-medium">En promotion</FormLabel>
+                            <FormDescription className="text-xs">Met en évidence la réduction.</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-border bg-background shrink-0 flex items-center justify-end gap-3">
+                <Button type="button" variant="outline" onClick={() => setIsSheetOpen(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={createProduct.isPending || updateProduct.isPending}>
+                  {(createProduct.isPending || updateProduct.isPending) ? 'Enregistrement...' : 'Enregistrer'}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </SheetContent>
+      </Sheet>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Êtes-vous absolument sûr ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Cela supprimera définitivement le produit et toutes ses données associées.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteProduct.isPending ? 'Suppression...' : 'Supprimer le produit'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -3,24 +3,30 @@ import { useListCoupons, useCreateCoupon, useUpdateCoupon, useDeleteCoupon } fro
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Ticket, Percent } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Ticket, Calendar, MoreHorizontal, Power, PowerOff } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { Skeleton } from '@/components/ui/skeleton';
+import { getListCouponsQueryKey } from '@workspace/api-client-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { format, isPast, isFuture } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 
 const couponSchema = z.object({
-  code: z.string().min(3, "Code requis (min 3 car.)"),
-  discountType: z.enum(['percentage', 'fixed']),
-  discountValue: z.coerce.number().min(0, "Valeur invalide"),
-  minOrderAmount: z.coerce.number().nullable().optional(),
-  maxUses: z.coerce.number().nullable().optional(),
+  code: z.string().min(3, "Le code doit contenir au moins 3 caractères").toUpperCase(),
+  discountType: z.enum(["percentage", "fixed"]),
+  discountValue: z.coerce.number().min(1, "La valeur doit être supérieure à 0"),
+  minOrderAmount: z.coerce.number().optional().nullable(),
+  maxUses: z.coerce.number().optional().nullable(),
   expiresAt: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
 });
@@ -28,11 +34,13 @@ const couponSchema = z.object({
 type CouponFormValues = z.infer<typeof couponSchema>;
 
 export default function AdminCoupons() {
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<any>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   
   const queryClient = useQueryClient();
-  const { data: coupons, isLoading } = useListCoupons();
+  const { data: coupons, isLoading } = useListCoupons({ query: { queryKey: getListCouponsQueryKey() } });
 
   const createCoupon = useCreateCoupon();
   const updateCoupon = useUpdateCoupon();
@@ -44,192 +52,226 @@ export default function AdminCoupons() {
       code: '',
       discountType: 'percentage',
       discountValue: 0,
+      minOrderAmount: null,
+      maxUses: null,
+      expiresAt: '',
       isActive: true,
     },
   });
 
-  const handleCreate = async (data: CouponFormValues) => {
-    try {
-      await createCoupon.mutateAsync({ data: data as any });
-      toast.success('Coupon créé');
-      setIsCreateOpen(false);
-      form.reset();
-      queryClient.invalidateQueries({ queryKey: ['coupons'] });
-    } catch (err: any) {
-      toast.error('Erreur lors de la création');
-    }
-  };
+  const filteredCoupons = coupons?.filter(c => 
+    c.code.toLowerCase().includes(search.toLowerCase())
+  ).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
-  const handleUpdate = async (data: CouponFormValues) => {
-    if (!editingCoupon) return;
+  const onSubmit = async (data: CouponFormValues) => {
     try {
-      await updateCoupon.mutateAsync({ id: editingCoupon.id, data: data as any });
-      toast.success('Coupon mis à jour');
+      const payload = {
+        ...data,
+        minOrderAmount: data.minOrderAmount || undefined,
+        maxUses: data.maxUses || undefined,
+        expiresAt: data.expiresAt || undefined,
+      };
+
+      if (editingCoupon) {
+        await updateCoupon.mutateAsync({ id: editingCoupon.id, data: payload as any });
+        toast.success('Code promo mis à jour');
+      } else {
+        await createCoupon.mutateAsync({ data: payload as any });
+        toast.success('Code promo créé');
+      }
+      setIsDialogOpen(false);
       setEditingCoupon(null);
-      queryClient.invalidateQueries({ queryKey: ['coupons'] });
+      form.reset();
+      queryClient.invalidateQueries({ queryKey: getListCouponsQueryKey() });
     } catch (err: any) {
-      toast.error('Erreur lors de la mise à jour');
+      toast.error(editingCoupon ? 'Erreur lors de la mise à jour' : 'Erreur lors de la création (code existant?)');
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce coupon ?')) return;
+  const handleDelete = async () => {
+    if (!deleteConfirmId) return;
     try {
-      await deleteCoupon.mutateAsync({ id });
-      toast.success('Coupon supprimé');
-      queryClient.invalidateQueries({ queryKey: ['coupons'] });
+      await deleteCoupon.mutateAsync({ id: deleteConfirmId });
+      toast.success('Code promo supprimé');
+      queryClient.invalidateQueries({ queryKey: getListCouponsQueryKey() });
     } catch (err: any) {
-      toast.error('Erreur lors de la suppression');
+      toast.error('Erreur lors de la suppression.');
+    } finally {
+      setDeleteConfirmId(null);
     }
+  };
+
+  const toggleStatus = async (coupon: any) => {
+    try {
+      await updateCoupon.mutateAsync({ 
+        id: coupon.id, 
+        data: { isActive: !coupon.isActive } 
+      });
+      toast.success(coupon.isActive ? 'Coupon désactivé' : 'Coupon activé');
+      queryClient.invalidateQueries({ queryKey: getListCouponsQueryKey() });
+    } catch(err) {
+      toast.error('Erreur lors de la modification du statut');
+    }
+  };
+
+  const openCreate = () => {
+    setEditingCoupon(null);
+    form.reset({
+      code: '',
+      discountType: 'percentage',
+      discountValue: 0,
+      minOrderAmount: null,
+      maxUses: null,
+      expiresAt: '',
+      isActive: true,
+    });
+    setIsDialogOpen(true);
   };
 
   const openEdit = (coupon: any) => {
+    setEditingCoupon(coupon);
     form.reset({
       code: coupon.code,
       discountType: coupon.discountType,
       discountValue: coupon.discountValue,
       minOrderAmount: coupon.minOrderAmount,
       maxUses: coupon.maxUses,
-      expiresAt: coupon.expiresAt ? coupon.expiresAt.substring(0, 16) : null,
+      expiresAt: coupon.expiresAt ? format(new Date(coupon.expiresAt), "yyyy-MM-dd'T'HH:mm") : '',
       isActive: coupon.isActive,
     });
-    setEditingCoupon(coupon);
+    setIsDialogOpen(true);
   };
 
-  const FormContent = ({ isSubmitting }: { isSubmitting: boolean }) => (
-    <div className="space-y-4">
-      <FormField control={form.control} name="code" render={({ field }) => (
-        <FormItem><FormLabel>Code Promo (ex: REDUC20)</FormLabel><FormControl><Input className="uppercase" {...field} onChange={e => field.onChange(e.target.value.toUpperCase())} /></FormControl><FormMessage /></FormItem>
-      )} />
-      
-      <div className="grid grid-cols-2 gap-4">
-        <FormField control={form.control} name="discountType" render={({ field }) => (
-          <FormItem><FormLabel>Type de remise</FormLabel>
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
-              <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-              <SelectContent>
-                <SelectItem value="percentage">Pourcentage (%)</SelectItem>
-                <SelectItem value="fixed">Montant fixe (DA)</SelectItem>
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )} />
-        <FormField control={form.control} name="discountValue" render={({ field }) => (
-          <FormItem><FormLabel>Valeur</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
-        )} />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <FormField control={form.control} name="minOrderAmount" render={({ field }) => (
-          <FormItem><FormLabel>Montant min. (Optionnel)</FormLabel><FormControl><Input type="number" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
-        )} />
-        <FormField control={form.control} name="maxUses" render={({ field }) => (
-          <FormItem><FormLabel>Max. utilisations (Optionnel)</FormLabel><FormControl><Input type="number" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
-        )} />
-      </div>
-
-      <FormField control={form.control} name="expiresAt" render={({ field }) => (
-        <FormItem><FormLabel>Date d'expiration (Optionnelle)</FormLabel><FormControl><Input type="datetime-local" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
-      )} />
-
-      <FormField control={form.control} name="isActive" render={({ field }) => (
-        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-          <div className="space-y-0.5"><FormLabel>Actif</FormLabel></div>
-          <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-        </FormItem>
-      )} />
-
-      <div className="flex justify-end pt-4">
-        <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Enregistrement...' : 'Enregistrer'}</Button>
-      </div>
-    </div>
-  );
+  const getStatusBadge = (coupon: any) => {
+    if (!coupon.isActive) {
+      return <Badge variant="outline" className="text-muted-foreground bg-muted/50 border-muted">Inactif</Badge>;
+    }
+    if (coupon.expiresAt && isPast(new Date(coupon.expiresAt))) {
+      return <Badge variant="outline" className="text-destructive bg-destructive/10 border-destructive/20">Expiré</Badge>;
+    }
+    if (coupon.maxUses && coupon.usageCount >= coupon.maxUses) {
+      return <Badge variant="outline" className="text-warning-foreground bg-warning/10 border-warning/20">Épuisé</Badge>;
+    }
+    return <Badge variant="outline" className="text-emerald-600 bg-emerald-500/10 border-emerald-200">Actif</Badge>;
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold tracking-tight">Coupons & Promos</h2>
-        
-        <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if(!open) form.reset(); }}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90">
-              <Plus className="h-4 w-4 mr-2" /> Nouveau Coupon
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Créer un coupon</DialogTitle></DialogHeader>
-            <Form {...form}><form onSubmit={form.handleSubmit(handleCreate)}><FormContent isSubmitting={createCoupon.isPending} /></form></Form>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={!!editingCoupon} onOpenChange={(open) => !open && setEditingCoupon(null)}>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Modifier le coupon</DialogTitle></DialogHeader>
-            <Form {...form}><form onSubmit={form.handleSubmit(handleUpdate)}><FormContent isSubmitting={updateCoupon.isPending} /></form></Form>
-          </DialogContent>
-        </Dialog>
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Codes Promo</h2>
+          <p className="text-muted-foreground text-sm">Générez des coupons de réduction pour vos clients.</p>
+        </div>
+        <Button onClick={openCreate} className="shadow-sm">
+          <Plus className="mr-2 h-4 w-4" /> Nouveau code
+        </Button>
       </div>
 
-      <Card className="border-border shadow-sm">
-        <div className="overflow-x-auto">
+      <Card className="border-border shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-border bg-muted/20 flex items-center justify-between gap-4">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Rechercher un code (ex: SUMMER2024)..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 bg-background shadow-sm border-border h-9 uppercase"
+            />
+          </div>
+          <div className="text-sm text-muted-foreground font-medium whitespace-nowrap">
+            {filteredCoupons?.length || 0} codes
+          </div>
+        </div>
+
+        <div className="overflow-x-auto min-h-[300px]">
           <table className="w-full text-sm text-left">
-            <thead className="text-xs text-muted-foreground uppercase bg-muted/30 border-b border-border">
+            <thead className="text-xs text-muted-foreground uppercase bg-muted/40 border-b border-border">
               <tr>
                 <th className="px-4 py-3 font-semibold">Code</th>
-                <th className="px-4 py-3 font-semibold">Remise</th>
-                <th className="px-4 py-3 font-semibold">Utilisations</th>
-                <th className="px-4 py-3 font-semibold">Expiration</th>
+                <th className="px-4 py-3 font-semibold">Réduction</th>
+                <th className="px-4 py-3 font-semibold text-center">Utilisations</th>
+                <th className="px-4 py-3 font-semibold">Limites</th>
                 <th className="px-4 py-3 font-semibold">Statut</th>
                 <th className="px-4 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="divide-y divide-border bg-background">
               {isLoading ? (
-                Array(3).fill(0).map((_, i) => (
-                  <tr key={i}><td colSpan={6} className="px-4 py-4"><div className="h-6 bg-muted rounded animate-pulse w-full"></div></td></tr>
+                Array(5).fill(0).map((_, i) => (
+                  <tr key={i}>
+                    <td className="px-4 py-4"><Skeleton className="h-6 w-24 rounded" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-4 w-16" /></td>
+                    <td className="px-4 py-4 text-center"><Skeleton className="h-4 w-12 mx-auto" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-24 mt-1" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-6 w-16 rounded-full" /></td>
+                    <td className="px-4 py-4 text-right"><Skeleton className="h-8 w-8 ml-auto" /></td>
+                  </tr>
                 ))
-              ) : coupons?.map((coupon) => (
-                <tr key={coupon.id} className="hover:bg-muted/10 transition-colors">
+              ) : filteredCoupons?.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-16 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <Ticket className="h-12 w-12 mb-4 text-muted-foreground/30" />
+                      <p className="text-lg font-medium text-foreground">Aucun code promo</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredCoupons?.map((coupon) => (
+                <tr key={coupon.id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
-                        <Ticket className="h-4 w-4" />
-                      </div>
-                      <span className="font-extrabold text-foreground tracking-widest">{coupon.code}</span>
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-secondary/10 border border-secondary/20">
+                      <Ticket className="h-3.5 w-3.5 text-secondary" />
+                      <span className="font-bold font-mono text-secondary tracking-wider text-sm">{coupon.code}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 font-bold text-foreground">
+                    {coupon.discountType === 'percentage' 
+                      ? `${coupon.discountValue}%` 
+                      : `${coupon.discountValue.toLocaleString('fr-DZ')} DA`}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="font-medium text-foreground">{coupon.usageCount}</span>
+                    {coupon.maxUses && <span className="text-muted-foreground text-xs"> / {coupon.maxUses}</span>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    <div className="flex flex-col gap-1">
+                      {coupon.minOrderAmount ? <span>Min: {coupon.minOrderAmount.toLocaleString('fr-DZ')} DA</span> : <span>Sans minimum</span>}
+                      {coupon.expiresAt ? (
+                        <span className={`flex items-center gap-1 ${isPast(new Date(coupon.expiresAt)) ? 'text-destructive' : ''}`}>
+                          <Calendar className="h-3 w-3" />
+                          Jusqu'au {format(new Date(coupon.expiresAt), 'dd/MM/yyyy HH:mm')}
+                        </span>
+                      ) : <span>Pas d'expiration</span>}
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="font-bold">
-                      {coupon.discountType === 'percentage' ? `${coupon.discountValue}%` : `${coupon.discountValue.toLocaleString('fr-DZ')} DA`}
-                    </span>
-                    {coupon.minOrderAmount && (
-                      <div className="text-[10px] text-muted-foreground">Dès {coupon.minOrderAmount.toLocaleString('fr-DZ')} DA</div>
-                    )}
+                    {getStatusBadge(coupon)}
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="text-sm">
-                      <span className="font-bold">{coupon.usageCount}</span>
-                      {coupon.maxUses ? <span className="text-muted-foreground"> / {coupon.maxUses}</span> : <span className="text-muted-foreground"> (Illimité)</span>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {coupon.expiresAt ? format(new Date(coupon.expiresAt), 'dd/MM/yyyy HH:mm') : '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {coupon.isActive ? (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-600 border border-green-200">Actif</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">Inactif</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right space-x-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(coupon)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(coupon.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <td className="px-4 py-3 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-[180px]">
+                        <DropdownMenuItem onClick={() => openEdit(coupon)}>
+                          <Edit className="mr-2 h-4 w-4" /> Modifier
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toggleStatus(coupon)}>
+                          {coupon.isActive ? (
+                            <><PowerOff className="mr-2 h-4 w-4" /> Désactiver</>
+                          ) : (
+                            <><Power className="mr-2 h-4 w-4" /> Activer</>
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setDeleteConfirmId(coupon.id)} className="text-destructive focus:bg-destructive/10">
+                          <Trash2 className="mr-2 h-4 w-4" /> Supprimer
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               ))}
@@ -237,6 +279,162 @@ export default function AdminCoupons() {
           </table>
         </div>
       </Card>
+
+      {/* Form Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if(!open) setTimeout(() => form.reset(), 300); }}>
+        <DialogContent className="max-w-md p-0 overflow-hidden">
+          <div className="px-6 py-4 border-b border-border bg-muted/10 shrink-0">
+            <DialogHeader>
+              <DialogTitle className="text-xl">{editingCoupon ? 'Modifier le code promo' : 'Créer un code promo'}</DialogTitle>
+              <DialogDescription>Définissez les règles de réduction applicables au panier.</DialogDescription>
+            </DialogHeader>
+          </div>
+          
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col">
+              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                <FormField
+                  control={form.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Code Promo *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="SUMMER20" className="uppercase font-mono font-bold" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="discountType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Type de réduction *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="percentage">Pourcentage (%)</SelectItem>
+                            <SelectItem value="fixed">Montant fixe (DA)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="discountValue"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Valeur *</FormLabel>
+                        <FormControl>
+                          <Input type="number" min="1" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="minOrderAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Minimum d'achat (DA)</FormLabel>
+                        <FormControl>
+                          <Input type="number" min="0" value={field.value || ''} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : null)} placeholder="Aucun" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="maxUses"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Limites d'utilisation</FormLabel>
+                        <FormControl>
+                          <Input type="number" min="1" value={field.value || ''} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : null)} placeholder="Illimité" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="expiresAt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date d'expiration</FormLabel>
+                      <FormControl>
+                        <Input type="datetime-local" value={field.value || ''} onChange={field.onChange} />
+                      </FormControl>
+                      <FormDescription className="text-xs">Laissez vide si le code n'expire jamais.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card mt-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-sm font-medium">Coupon Actif</FormLabel>
+                        <FormDescription className="text-xs">Permet aux clients de l'utiliser.</FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <div className="px-6 py-4 border-t border-border bg-background flex justify-end gap-3 shrink-0">
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={createCoupon.isPending || updateCoupon.isPending}>
+                  {(createCoupon.isPending || updateCoupon.isPending) ? 'Enregistrement...' : 'Enregistrer'}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer ce code promo ? Cette action ne peut pas être annulée.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteCoupon.isPending ? 'Suppression...' : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

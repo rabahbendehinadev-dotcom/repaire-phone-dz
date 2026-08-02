@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { useGetSettings, useUpdateSettings } from '@workspace/api-client-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
@@ -7,42 +8,56 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Store, Globe, Truck, Building, Save } from 'lucide-react';
-import { useEffect } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import { Store, Phone, Mail, MapPin, Share2, Search, Truck, Lock, CreditCard } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQueryClient } from '@tanstack/react-query';
+import { getGetSettingsQueryKey } from '@workspace/api-client-react';
 
 const settingsSchema = z.object({
-  storeName: z.string().min(2, "Nom requis"),
-  logoUrl: z.string().optional(),
-  faviconUrl: z.string().optional(),
+  storeName: z.string().min(2, "Le nom est requis"),
+  logoUrl: z.string().url("URL invalide").optional().or(z.literal('')),
+  faviconUrl: z.string().url("URL invalide").optional().or(z.literal('')),
   phone: z.string().optional(),
   email: z.string().email("Email invalide").optional().or(z.literal('')),
   address: z.string().optional(),
-  facebook: z.string().optional(),
-  instagram: z.string().optional(),
+  facebook: z.string().url("URL invalide").optional().or(z.literal('')),
+  instagram: z.string().url("URL invalide").optional().or(z.literal('')),
   whatsapp: z.string().optional(),
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),
-  shippingCost: z.coerce.number().min(0),
-  freeShippingThreshold: z.coerce.number().nullable().optional(),
+  shippingCost: z.coerce.number().min(0).default(0),
+  freeShippingThreshold: z.coerce.number().min(0).optional().nullable(),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 export default function AdminSettings() {
-  const { data: settings, isLoading } = useGetSettings();
-  const updateSettings = useUpdateSettings();
+  const [activeTab, setActiveTab] = useState("general");
   const queryClient = useQueryClient();
+  const { data: settings, isLoading } = useGetSettings({ query: { queryKey: getGetSettingsQueryKey() } });
+  const updateSettings = useUpdateSettings();
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       storeName: '',
-      shippingCost: 0,
+      logoUrl: '',
+      faviconUrl: '',
+      phone: '',
+      email: '',
+      address: '',
+      facebook: '',
+      instagram: '',
+      whatsapp: '',
+      metaTitle: '',
+      metaDescription: '',
+      shippingCost: 500,
+      freeShippingThreshold: null,
     },
   });
 
-  // Load data into form when available
   useEffect(() => {
     if (settings) {
       form.reset({
@@ -65,178 +80,392 @@ export default function AdminSettings() {
 
   const onSubmit = async (data: SettingsFormValues) => {
     try {
-      await updateSettings.mutateAsync({ data: data as any });
-      toast.success('Paramètres enregistrés avec succès');
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      const payload = {
+        ...data,
+        logoUrl: data.logoUrl || undefined,
+        faviconUrl: data.faviconUrl || undefined,
+        email: data.email || undefined,
+        facebook: data.facebook || undefined,
+        instagram: data.instagram || undefined,
+        freeShippingThreshold: data.freeShippingThreshold || null,
+      };
+      
+      await updateSettings.mutateAsync({ data: payload as any });
+      toast.success('Paramètres mis à jour avec succès');
+      queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
     } catch (err: any) {
-      toast.error('Erreur lors de l\'enregistrement');
+      toast.error('Erreur lors de la mise à jour des paramètres');
     }
   };
 
-  if (isLoading) return <div className="p-20 text-center animate-pulse">Chargement des paramètres...</div>;
+  const handlePasswordChange = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const currentPassword = formData.get('currentPassword');
+    const newPassword = formData.get('newPassword');
+    const confirmPassword = formData.get('confirmPassword');
+
+    if (newPassword !== confirmPassword) {
+      toast.error('Les mots de passe ne correspondent pas');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success('Mot de passe changé avec succès. Veuillez vous reconnecter.');
+      setTimeout(() => {
+        window.location.href = '/admin/login';
+      }, 2000);
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors du changement de mot de passe');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-[40px] w-full max-w-2xl" />
+        <Skeleton className="h-[500px] w-full" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold tracking-tight">Paramètres de la boutique</h2>
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">Paramètres</h2>
+        <p className="text-muted-foreground text-sm">Gérez les informations globales de votre boutique.</p>
       </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <div className="border-b border-border overflow-x-auto pb-px">
+          <TabsList className="bg-transparent h-12 w-full justify-start rounded-none p-0 flex-nowrap min-w-max">
+            <TabsTrigger value="general" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-6">
+              <Store className="h-4 w-4 mr-2" /> Général
+            </TabsTrigger>
+            <TabsTrigger value="contact" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-6">
+              <Phone className="h-4 w-4 mr-2" /> Contact & Réseaux
+            </TabsTrigger>
+            <TabsTrigger value="shipping" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-6">
+              <Truck className="h-4 w-4 mr-2" /> Livraison & Paiement
+            </TabsTrigger>
+            <TabsTrigger value="seo" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-6">
+              <Search className="h-4 w-4 mr-2" /> SEO
+            </TabsTrigger>
+            <TabsTrigger value="security" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-6">
+              <Lock className="h-4 w-4 mr-2" /> Sécurité
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            
+            <TabsContent value="general" className="mt-0 outline-none">
+              <Card className="border-border shadow-sm">
+                <CardHeader>
+                  <CardTitle>Informations de la boutique</CardTitle>
+                  <CardDescription>Informations de base affichées sur le site public.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="storeName"
+                    render={({ field }) => (
+                      <FormItem className="max-w-xl">
+                        <FormLabel>Nom de la boutique *</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="logoUrl"
+                    render={({ field }) => (
+                      <FormItem className="max-w-xl">
+                        <FormLabel>URL du Logo</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://..." {...field} />
+                        </FormControl>
+                        <FormDescription>Logo principal de la boutique.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="faviconUrl"
+                    render={({ field }) => (
+                      <FormItem className="max-w-xl">
+                        <FormLabel>URL du Favicon</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://..." {...field} />
+                        </FormControl>
+                        <FormDescription>Icône de l'onglet du navigateur (recommandé: 32x32px).</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="pt-4 flex justify-end max-w-xl">
+                    <Button type="submit" disabled={updateSettings.isPending}>
+                      {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="contact" className="mt-0 outline-none">
+              <Card className="border-border shadow-sm">
+                <CardHeader>
+                  <CardTitle>Contact & Réseaux Sociaux</CardTitle>
+                  <CardDescription>Comment vos clients peuvent vous contacter.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4 max-w-xl">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">Coordonnées</h3>
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2"><Mail className="h-4 w-4" /> Email de contact</FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="contact@repaire-phone-dz.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2"><Phone className="h-4 w-4" /> Numéro de téléphone</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+213..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="address"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2"><MapPin className="h-4 w-4" /> Adresse physique</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Adresse du magasin..." className="resize-none" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <div className="space-y-4 max-w-xl pt-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">Réseaux Sociaux</h3>
+                    <FormField
+                      control={form.control}
+                      name="facebook"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2"><Share2 className="h-4 w-4" /> Page Facebook</FormLabel>
+                          <FormControl>
+                            <Input placeholder="https://facebook.com/..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="instagram"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2"><Share2 className="h-4 w-4" /> Compte Instagram</FormLabel>
+                          <FormControl>
+                            <Input placeholder="https://instagram.com/..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="whatsapp"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2"><Share2 className="h-4 w-4" /> Numéro WhatsApp</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+213..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="pt-4 flex justify-end max-w-xl">
+                    <Button type="submit" disabled={updateSettings.isPending}>
+                      {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="shipping" className="mt-0 outline-none">
+              <Card className="border-border shadow-sm">
+                <CardHeader>
+                  <CardTitle>Livraison & Paiement</CardTitle>
+                  <CardDescription>Configurez les tarifs d'expédition et options bancaires.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4 max-w-xl">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border pb-2 flex items-center gap-2"><Truck className="h-4 w-4" /> Expédition</h3>
+                    <FormField
+                      control={form.control}
+                      name="shippingCost"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Frais de livraison standard (DA)</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="0" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="freeShippingThreshold"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Montant pour livraison gratuite (DA)</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="0" value={field.value || ''} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : null)} placeholder="Laissez vide pour désactiver" />
+                          </FormControl>
+                          <FormDescription>Les commandes au-dessus de ce montant auront la livraison offerte.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="space-y-4 max-w-xl pt-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border pb-2 flex items-center gap-2"><CreditCard className="h-4 w-4" /> Paiement Bancaire (CCP / BaridiMob)</h3>
+                    <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 space-y-4">
+                      <p className="text-sm text-muted-foreground">Ces informations seront affichées aux clients lors de la sélection du paiement par virement.</p>
+                      
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Nom du compte</label>
+                        <Input defaultValue="BEN FLEN Foulen" />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Numéro de compte (RIP)</label>
+                        <Input defaultValue="00799999000000000000" />
+                      </div>
+                      
+                      <Button type="button" variant="outline" className="w-full">Enregistrer les infos bancaires</Button>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex justify-end max-w-xl">
+                    <Button type="submit" disabled={updateSettings.isPending}>
+                      {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="seo" className="mt-0 outline-none">
+              <Card className="border-border shadow-sm">
+                <CardHeader>
+                  <CardTitle>Référencement (SEO)</CardTitle>
+                  <CardDescription>Optimisez la visibilité de votre boutique sur les moteurs de recherche.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 max-w-xl">
+                  <FormField
+                    control={form.control}
+                    name="metaTitle"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Titre du site (Meta Title)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Repaire Phone DZ - Équipements de réparation" {...field} />
+                        </FormControl>
+                        <FormDescription>Le titre principal qui apparaît dans les résultats de recherche.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="metaDescription"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description du site (Meta Description)</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Le spécialiste des pièces détachées et équipements..." className="resize-none h-24" {...field} />
+                        </FormControl>
+                        <FormDescription>Un court résumé (150-160 caractères) affiché sous le titre dans les résultats.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="pt-4 flex justify-end">
+                    <Button type="submit" disabled={updateSettings.isPending}>
+                      {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </form>
+        </Form>
+        
+        <TabsContent value="security" className="mt-0 outline-none">
           <Card className="border-border shadow-sm">
-            <CardHeader className="bg-muted/20 border-b border-border">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Store className="h-5 w-5 text-primary" /> Informations Générales
-              </CardTitle>
+            <CardHeader className="border-b border-border/50 pb-4">
+              <CardTitle className="text-destructive flex items-center gap-2"><Lock className="h-5 w-5" /> Changer mon mot de passe</CardTitle>
+              <CardDescription>Mettez à jour votre mot de passe administrateur actuel.</CardDescription>
             </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <FormField control={form.control} name="storeName" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nom de la boutique</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="logoUrl" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL du Logo</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="faviconUrl" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL du Favicon</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
+            <CardContent className="pt-6 max-w-xl">
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Mot de passe actuel</label>
+                  <Input type="password" name="currentPassword" required />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Nouveau mot de passe</label>
+                  <Input type="password" name="newPassword" required minLength={6} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Confirmer le nouveau mot de passe</label>
+                  <Input type="password" name="confirmPassword" required minLength={6} />
+                </div>
+                <div className="pt-4">
+                  <Button type="submit" variant="destructive">Mettre à jour le mot de passe</Button>
+                </div>
+              </form>
             </CardContent>
           </Card>
-
-          <Card className="border-border shadow-sm">
-            <CardHeader className="bg-muted/20 border-b border-border">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Building className="h-5 w-5 text-secondary" /> Contact & Adresse
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="email" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email de contact</FormLabel>
-                    <FormControl><Input type="email" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="phone" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Numéro de téléphone</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-              
-              <FormField control={form.control} name="address" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Adresse physique de la boutique</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <FormField control={form.control} name="facebook" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Facebook (URL)</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="instagram" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Instagram (URL)</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="whatsapp" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>WhatsApp (Numéro)</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border shadow-sm">
-            <CardHeader className="bg-muted/20 border-b border-border">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Truck className="h-5 w-5 text-navy" /> Livraison
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="shippingCost" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Frais de livraison par défaut (DA)</FormLabel>
-                    <FormControl><Input type="number" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="freeShippingThreshold" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Seuil de livraison gratuite (DA)</FormLabel>
-                    <FormControl><Input type="number" {...field} value={field.value || ''} /></FormControl>
-                    <FormDescription>Laissez vide pour ne pas offrir de livraison gratuite.</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border shadow-sm">
-            <CardHeader className="bg-muted/20 border-b border-border">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Globe className="h-5 w-5 text-indigo-500" /> SEO (Référencement)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <FormField control={form.control} name="metaTitle" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Meta Title</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormDescription>Le titre qui apparaîtra dans les résultats Google.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="metaDescription" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Meta Description</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormDescription>La description qui apparaîtra sous le titre dans les résultats Google.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )} />
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end pt-4 pb-10">
-            <Button type="submit" size="lg" className="bg-primary hover:bg-primary/90 px-8 h-12 shadow-lg" disabled={updateSettings.isPending}>
-              <Save className="mr-2 h-5 w-5" />
-              {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer les paramètres'}
-            </Button>
-          </div>
-        </form>
-      </Form>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
