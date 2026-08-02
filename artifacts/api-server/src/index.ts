@@ -12,34 +12,42 @@ async function seedSuperAdmin() {
   const normalizedEmail = email.toLowerCase();
 
   try {
-    // Always clear rate-limit records for this email on startup
+    // Hash the password from env var every time — this acts as a force-reset
+    // so the admin can always log in with the current ADMIN_PASSWORD value.
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // Upsert: create if not exists, or update password + ensure active if exists.
+    // This handles three cases safely:
+    //   1. Fresh DB — creates the super admin row.
+    //   2. Admin exists with wrong password — resets it to current env var value.
+    //   3. Admin exists with correct password — no visible change (hash differs but login works).
+    await db
+      .insert(adminUsersTable)
+      .values({
+        fullName: "Super Admin",
+        username: "superadmin",
+        email: normalizedEmail,
+        passwordHash,
+        role: "super_admin",
+        permissions: [],
+        isActive: true,
+        mustChangePassword: false,
+      })
+      .onConflictDoUpdate({
+        target: adminUsersTable.email,
+        set: {
+          passwordHash,
+          isActive: true,
+          role: "super_admin",
+        },
+      });
+
+    // Clear any accumulated rate-limit records for this email
     await db
       .delete(adminLoginAttemptsTable)
       .where(like(adminLoginAttemptsTable.identifier, `${normalizedEmail}:%`));
 
-    const existing = await db
-      .select({ id: adminUsersTable.id })
-      .from(adminUsersTable)
-      .where(eq(adminUsersTable.email, normalizedEmail))
-      .limit(1);
-
-    if (existing.length > 0) {
-      logger.info({ email }, "Super Admin already exists, rate limit cleared");
-      return;
-    }
-
-    const passwordHash = await bcrypt.hash(password, 12);
-    await db.insert(adminUsersTable).values({
-      fullName: "Super Admin",
-      username: "superadmin",
-      email: normalizedEmail,
-      passwordHash,
-      role: "super_admin",
-      permissions: [],
-      isActive: true,
-      mustChangePassword: false,
-    });
-    logger.info({ email }, "Super Admin seeded from env vars");
+    logger.info({ email }, "Super Admin synced from env vars");
   } catch (err) {
     logger.error({ err }, "Failed to seed Super Admin");
   }
