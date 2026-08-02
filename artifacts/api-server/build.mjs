@@ -14,6 +14,7 @@ async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
 
+  // ── Main server bundle ───────────────────────────────────────────────────
   await esbuild({
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
     platform: "node",
@@ -116,6 +117,33 @@ globalThis.require = __bannerCrReq(import.meta.url);
 globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
 globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
+    },
+  });
+
+  // ── Migration runner (standalone, no pino workers needed) ────────────────
+  const sharedExternal = [
+    "*.node", "pg-native", "@google-cloud/*", "@google/*", "googleapis",
+  ];
+
+  await esbuild({
+    entryPoints: [path.resolve(artifactDir, "src/migrate.ts")],
+    platform: "node",
+    bundle: true,
+    format: "esm",
+    outdir: distDir,
+    outExtension: { ".js": ".mjs" },
+    logLevel: "info",
+    external: sharedExternal,
+    sourcemap: "linked",
+    banner: {
+      js: `import { createRequire as __bannerCrReq } from 'node:module';
+import __bannerPath from 'node:path';
+import __bannerUrl from 'node:url';
+
+globalThis.require = __bannerCrReq(import.meta.url);
+globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
+globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
+`,
     },
   });
 }

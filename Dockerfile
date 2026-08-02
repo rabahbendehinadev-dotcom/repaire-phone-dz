@@ -66,11 +66,15 @@ COPY artifacts/api-server/package.json    artifacts/api-server/
 RUN pnpm install --frozen-lockfile --prod
 
 # ── Copy built artifacts ──────────────────────────────────────────────────────
-# API server bundle (index.mjs + pino worker files)
+# API server bundle (index.mjs + migrate.mjs + pino worker files)
 COPY --from=builder /app/artifacts/api-server/dist ./artifacts/api-server/dist
 
 # Frontend SPA (served as static files by Express in production)
 COPY --from=builder /app/artifacts/repaire-phone-dz/dist/public ./public
+
+# Database migrations — SQL files needed by migrate.mjs at runtime
+# drizzle-orm's migrator reads these directly from the filesystem
+COPY --from=builder /app/lib/db/migrations ./lib/db/migrations
 
 # ── Runtime configuration ─────────────────────────────────────────────────────
 ENV NODE_ENV=production
