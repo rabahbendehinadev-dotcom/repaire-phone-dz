@@ -1,28 +1,38 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import bcrypt from "bcryptjs";
-import { db, adminUsersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, adminUsersTable, adminLoginAttemptsTable } from "@workspace/db";
+import { eq, like } from "drizzle-orm";
 
 async function seedSuperAdmin() {
   const email = process.env["ADMIN_EMAIL"];
   const password = process.env["ADMIN_PASSWORD"];
   if (!email || !password) return;
 
+  const normalizedEmail = email.toLowerCase();
+
   try {
+    // Always clear rate-limit records for this email on startup
+    await db
+      .delete(adminLoginAttemptsTable)
+      .where(like(adminLoginAttemptsTable.identifier, `${normalizedEmail}:%`));
+
     const existing = await db
       .select({ id: adminUsersTable.id })
       .from(adminUsersTable)
-      .where(eq(adminUsersTable.email, email.toLowerCase()))
+      .where(eq(adminUsersTable.email, normalizedEmail))
       .limit(1);
 
-    if (existing.length > 0) return; // already exists
+    if (existing.length > 0) {
+      logger.info({ email }, "Super Admin already exists, rate limit cleared");
+      return;
+    }
 
     const passwordHash = await bcrypt.hash(password, 12);
     await db.insert(adminUsersTable).values({
       fullName: "Super Admin",
       username: "superadmin",
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       passwordHash,
       role: "super_admin",
       permissions: [],
