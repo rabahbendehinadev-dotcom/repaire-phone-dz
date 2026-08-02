@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useListCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from '@workspace/api-client-react';
+import { ImageUpload } from '@/components/admin/image-upload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,7 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 const categorySchema = z.object({
   name: z.string().min(2, "Le nom est requis"),
   description: z.string().optional(),
-  imageUrl: z.string().url("Doit être une URL valide").optional().or(z.literal('')),
+  imageUrl: z.string().optional(),
   iconName: z.string().optional(),
   sortOrder: z.coerce.number().min(0).default(0),
 });
@@ -274,9 +275,12 @@ export default function AdminCategories() {
                   name="imageUrl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>URL de l'image (Optionnel)</FormLabel>
+                      <FormLabel>Image de la catégorie</FormLabel>
                       <FormControl>
-                        <Input placeholder="https://..." {...field} />
+                        <ImageUpload
+                          value={field.value}
+                          onChange={(v) => field.onChange(v ?? '')}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

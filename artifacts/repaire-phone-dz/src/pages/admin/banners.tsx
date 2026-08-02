@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useListBanners, useCreateBanner, useUpdateBanner, useDeleteBanner } from '@workspace/api-client-react';
+import { ImageUpload } from '@/components/admin/image-upload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 const bannerSchema = z.object({
   title: z.string().min(2, "Le titre est requis"),
   subtitle: z.string().optional(),
-  imageUrl: z.string().url("Doit être une URL valide").optional().or(z.literal('')),
+  imageUrl: z.string().optional(),
   linkUrl: z.string().optional(),
   buttonText: z.string().optional(),
   isActive: z.boolean().default(true),
@@ -265,9 +266,12 @@ export default function AdminBanners() {
                   name="imageUrl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>URL de l'image *</FormLabel>
+                      <FormLabel>Image de la bannière</FormLabel>
                       <FormControl>
-                        <Input placeholder="https://..." {...field} />
+                        <ImageUpload
+                          value={field.value}
+                          onChange={(v) => field.onChange(v ?? '')}
+                        />
                       </FormControl>
                       <FormDescription className="text-xs">Dimensions recommandées : 1200x500px, format paysage.</FormDescription>
                       <FormMessage />

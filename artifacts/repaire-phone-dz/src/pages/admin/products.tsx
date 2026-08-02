@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useListProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useListCategories, useListBrands } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -19,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { getListProductsQueryKey } from '@workspace/api-client-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { MultiImageUpload } from '@/components/admin/multi-image-upload';
 
 const productSchema = z.object({
   name: z.string().min(2, "Le nom est requis"),
@@ -34,6 +36,11 @@ const productSchema = z.object({
   isFeatured: z.boolean().default(false),
   hasDiscount: z.boolean().default(false),
   images: z.array(z.string()).optional(),
+  specifications: z.string().optional(),
+  shippingInfo: z.string().optional(),
+  warrantyInfo: z.string().optional(),
+  metaTitle: z.string().optional(),
+  metaDescription: z.string().optional(),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -79,6 +86,11 @@ export default function AdminProducts() {
       isFeatured: false,
       hasDiscount: false,
       images: [],
+      specifications: '',
+      shippingInfo: '',
+      warrantyInfo: '',
+      metaTitle: '',
+      metaDescription: '',
     },
   });
 
@@ -126,6 +138,11 @@ export default function AdminProducts() {
       isFeatured: false,
       hasDiscount: false,
       images: [],
+      specifications: '',
+      shippingInfo: '',
+      warrantyInfo: '',
+      metaTitle: '',
+      metaDescription: '',
     });
     setIsSheetOpen(true);
   };
@@ -146,6 +163,11 @@ export default function AdminProducts() {
       isFeatured: product.isFeatured,
       hasDiscount: product.hasDiscount,
       images: product.images || [],
+      specifications: product.specifications || '',
+      shippingInfo: product.shippingInfo || '',
+      warrantyInfo: product.warrantyInfo || '',
+      metaTitle: product.metaTitle || '',
+      metaDescription: product.metaDescription || '',
     });
     setIsSheetOpen(true);
   };
@@ -411,38 +433,182 @@ export default function AdminProducts() {
           </div>
           
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1">
-              <div className="p-6 space-y-6 flex-1 overflow-y-auto">
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-foreground border-b border-border pb-2 text-sm uppercase tracking-wider">Informations générales</h3>
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nom du produit *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Ex: Écran iPhone 13 Pro Max" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                          <Textarea placeholder="Description détaillée du produit..." className="min-h-[100px] resize-none" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+              <Tabs defaultValue="informations" className="flex flex-col flex-1 min-h-0">
+                {/* Tab navigation */}
+                <div className="border-b border-border shrink-0 overflow-x-auto">
+                  <TabsList className="bg-transparent h-10 rounded-none p-0 flex-nowrap min-w-max w-full justify-start">
+                    <TabsTrigger value="informations" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-4 text-sm whitespace-nowrap">Informations</TabsTrigger>
+                    <TabsTrigger value="prix" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-4 text-sm whitespace-nowrap">Prix & Stock</TabsTrigger>
+                    <TabsTrigger value="images" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-4 text-sm whitespace-nowrap">Images</TabsTrigger>
+                    <TabsTrigger value="categorie" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-4 text-sm whitespace-nowrap">Catégorie</TabsTrigger>
+                    <TabsTrigger value="caracteristiques" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-4 text-sm whitespace-nowrap">Caractéristiques</TabsTrigger>
+                    <TabsTrigger value="promotion" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-4 text-sm whitespace-nowrap">Promotion</TabsTrigger>
+                    <TabsTrigger value="seo" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-4 text-sm whitespace-nowrap">SEO</TabsTrigger>
+                    <TabsTrigger value="publication" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-4 text-sm whitespace-nowrap">Publication</TabsTrigger>
+                  </TabsList>
+                </div>
+
+                {/* Tab contents */}
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {/* Tab: Informations */}
+                  <TabsContent value="informations" className="mt-0 p-6 space-y-4 outline-none">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nom du produit *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ex: Écran iPhone 13 Pro Max" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Description détaillée du produit..." className="min-h-[100px] resize-none" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="sku"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>SKU (Référence)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Ex: IP13-SCR-ORG" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="barcode"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Code-barres</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Ex: 123456789" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </TabsContent>
+
+                  {/* Tab: Prix & Stock */}
+                  <TabsContent value="prix" className="mt-0 p-6 space-y-4 outline-none">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="price"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Prix de vente (DA) *</FormLabel>
+                            <FormControl>
+                              <Input type="number" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="comparePrice"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Prix comparé (DA)</FormLabel>
+                            <FormControl>
+                              <Input type="number" value={field.value || ''} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)} placeholder="Ancien prix" />
+                            </FormControl>
+                            <FormDescription className="text-[10px]">Affiché barré si supérieur au prix de vente.</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="stock"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Stock actuel *</FormLabel>
+                          <FormControl>
+                            <Input type="number" className="max-w-[180px]" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="flex flex-col gap-3 pt-2">
+                      <FormField
+                        control={form.control}
+                        name="isNew"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-sm font-medium">Nouveauté</FormLabel>
+                              <FormDescription className="text-xs">Afficher le badge "Nouveau".</FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="isFeatured"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-sm font-medium">Mettre en avant</FormLabel>
+                              <FormDescription className="text-xs">Afficher sur la page d'accueil.</FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </TabsContent>
+
+                  {/* Tab: Images */}
+                  <TabsContent value="images" className="mt-0 p-6 outline-none">
+                    <FormField
+                      control={form.control}
+                      name="images"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Galerie d'images</FormLabel>
+                          <FormControl>
+                            <MultiImageUpload
+                              value={field.value || []}
+                              onChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </TabsContent>
+
+                  {/* Tab: Catégorie */}
+                  <TabsContent value="categorie" className="mt-0 p-6 space-y-4 outline-none">
                     <FormField
                       control={form.control}
                       name="categoryId"
@@ -452,7 +618,7 @@ export default function AdminProducts() {
                           <Select onValueChange={(val) => field.onChange(val === "null" ? null : Number(val))} value={field.value?.toString() || "null"}>
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner" />
+                                <SelectValue placeholder="Sélectionner une catégorie" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
@@ -475,7 +641,7 @@ export default function AdminProducts() {
                           <Select onValueChange={(val) => field.onChange(val === "null" ? null : Number(val))} value={field.value?.toString() || "null"}>
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner" />
+                                <SelectValue placeholder="Sélectionner une marque" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
@@ -489,22 +655,65 @@ export default function AdminProducts() {
                         </FormItem>
                       )}
                     />
-                  </div>
-                </div>
+                  </TabsContent>
 
-                <div className="space-y-4 pt-4">
-                  <h3 className="font-semibold text-foreground border-b border-border pb-2 text-sm uppercase tracking-wider">Prix & Inventaire</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* Tab: Caractéristiques */}
+                  <TabsContent value="caracteristiques" className="mt-0 p-6 space-y-4 outline-none">
                     <FormField
                       control={form.control}
-                      name="price"
+                      name="specifications"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Prix de vente (DA) *</FormLabel>
+                          <FormLabel>Spécifications techniques</FormLabel>
                           <FormControl>
-                            <Input type="number" {...field} />
+                            <Textarea placeholder="Compatibilité, dimensions, caractéristiques techniques..." className="min-h-[100px] resize-none" {...field} />
                           </FormControl>
                           <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="shippingInfo"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Informations de livraison</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Délais, conditions d'expédition..." className="min-h-[80px] resize-none" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="warrantyInfo"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Garantie</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Durée et conditions de garantie..." className="min-h-[80px] resize-none" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </TabsContent>
+
+                  {/* Tab: Promotion */}
+                  <TabsContent value="promotion" className="mt-0 p-6 space-y-4 outline-none">
+                    <FormField
+                      control={form.control}
+                      name="hasDiscount"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-sm font-medium">En promotion</FormLabel>
+                            <FormDescription className="text-xs">Met en évidence la réduction sur ce produit.</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
                         </FormItem>
                       )}
                     />
@@ -515,96 +724,107 @@ export default function AdminProducts() {
                         <FormItem>
                           <FormLabel>Prix comparé (DA)</FormLabel>
                           <FormControl>
-                            <Input type="number" value={field.value || ''} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)} placeholder="Ancien prix" />
+                            <Input type="number" value={field.value || ''} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)} placeholder="Prix avant réduction" />
                           </FormControl>
-                          <FormDescription className="text-[10px]">Affiché barré si supérieur au prix de vente.</FormDescription>
+                          <FormDescription className="text-xs">L'ancien prix affiché barré à côté du prix actuel.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="stock"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Stock actuel *</FormLabel>
-                          <FormControl>
-                            <Input type="number" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="sku"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>SKU (Référence)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Ex: IP13-SCR-ORG" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
+                  </TabsContent>
 
-                <div className="space-y-4 pt-4">
-                  <h3 className="font-semibold text-foreground border-b border-border pb-2 text-sm uppercase tracking-wider">Mise en avant</h3>
-                  <div className="flex flex-col gap-3">
+                  {/* Tab: SEO */}
+                  <TabsContent value="seo" className="mt-0 p-6 space-y-4 outline-none">
                     <FormField
                       control={form.control}
-                      name="isNew"
+                      name="metaTitle"
                       render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-sm font-medium">Nouveauté</FormLabel>
-                            <FormDescription className="text-xs">Afficher le badge "Nouveau" sur ce produit.</FormDescription>
-                          </div>
+                        <FormItem>
+                          <FormLabel>Titre SEO (Meta Title)</FormLabel>
                           <FormControl>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            <Input placeholder="Titre pour les moteurs de recherche..." {...field} />
                           </FormControl>
+                          <FormDescription className="text-xs">Laissez vide pour utiliser le nom du produit.</FormDescription>
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
                     <FormField
                       control={form.control}
-                      name="isFeatured"
+                      name="metaDescription"
                       render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-sm font-medium">Mettre en avant</FormLabel>
-                            <FormDescription className="text-xs">Afficher sur la page d'accueil.</FormDescription>
-                          </div>
+                        <FormItem>
+                          <FormLabel>Description SEO (Meta Description)</FormLabel>
                           <FormControl>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            <Textarea placeholder="Description courte pour les résultats de recherche (150-160 caractères)..." className="min-h-[80px] resize-none" {...field} />
                           </FormControl>
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
-                    <FormField
-                      control={form.control}
-                      name="hasDiscount"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-sm font-medium">En promotion</FormLabel>
-                            <FormDescription className="text-xs">Met en évidence la réduction.</FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                  </TabsContent>
+
+                  {/* Tab: Publication */}
+                  <TabsContent value="publication" className="mt-0 p-6 space-y-4 outline-none">
+                    <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+                      <p className="text-sm font-medium text-foreground">Récapitulatif</p>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Nom</span>
+                          <span className="font-medium truncate max-w-[200px]">{form.watch('name') || <span className="text-destructive italic">Non renseigné</span>}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Prix</span>
+                          <span className="font-medium">{form.watch('price') ? `${form.watch('price').toLocaleString('fr-DZ')} DA` : <span className="text-destructive italic">Non renseigné</span>}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Stock</span>
+                          <span className="font-medium">{form.watch('stock') ?? 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Images</span>
+                          <span className="font-medium">{(form.watch('images') || []).length} image(s)</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+                      ⚠️ Vérifiez les informations avant de publier. Les champs obligatoires (nom, prix, stock) doivent être renseignés.
+                    </p>
+                    <div className="flex flex-col gap-3">
+                      <FormField
+                        control={form.control}
+                        name="isNew"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-sm font-medium">Nouveauté</FormLabel>
+                              <FormDescription className="text-xs">Afficher le badge "Nouveau".</FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="isFeatured"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-card">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-sm font-medium">Mettre en avant</FormLabel>
+                              <FormDescription className="text-xs">Afficher sur la page d'accueil.</FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </TabsContent>
                 </div>
-              </div>
+              </Tabs>
               
               <div className="p-6 border-t border-border bg-background shrink-0 flex items-center justify-end gap-3">
                 <Button type="button" variant="outline" onClick={() => setIsSheetOpen(false)}>

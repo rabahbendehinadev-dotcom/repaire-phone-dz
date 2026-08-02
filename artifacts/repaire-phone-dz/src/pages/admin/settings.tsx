@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGetSettings, useUpdateSettings } from '@workspace/api-client-react';
+import { ImageUpload } from '@/components/admin/image-upload';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -17,8 +18,8 @@ import { getGetSettingsQueryKey } from '@workspace/api-client-react';
 
 const settingsSchema = z.object({
   storeName: z.string().min(2, "Le nom est requis"),
-  logoUrl: z.string().url("URL invalide").optional().or(z.literal('')),
-  faviconUrl: z.string().url("URL invalide").optional().or(z.literal('')),
+  logoUrl: z.string().optional(),
+  faviconUrl: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email("Email invalide").optional().or(z.literal('')),
   address: z.string().optional(),
@@ -193,9 +194,12 @@ export default function AdminSettings() {
                     name="logoUrl"
                     render={({ field }) => (
                       <FormItem className="max-w-xl">
-                        <FormLabel>URL du Logo</FormLabel>
+                        <FormLabel>Logo du magasin</FormLabel>
                         <FormControl>
-                          <Input placeholder="https://..." {...field} />
+                          <ImageUpload
+                            value={field.value}
+                            onChange={(v) => field.onChange(v ?? '')}
+                          />
                         </FormControl>
                         <FormDescription>Logo principal de la boutique.</FormDescription>
                         <FormMessage />
@@ -207,9 +211,12 @@ export default function AdminSettings() {
                     name="faviconUrl"
                     render={({ field }) => (
                       <FormItem className="max-w-xl">
-                        <FormLabel>URL du Favicon</FormLabel>
+                        <FormLabel>Favicon</FormLabel>
                         <FormControl>
-                          <Input placeholder="https://..." {...field} />
+                          <ImageUpload
+                            value={field.value}
+                            onChange={(v) => field.onChange(v ?? '')}
+                          />
                         </FormControl>
                         <FormDescription>Icône de l'onglet du navigateur (recommandé: 32x32px).</FormDescription>
                         <FormMessage />

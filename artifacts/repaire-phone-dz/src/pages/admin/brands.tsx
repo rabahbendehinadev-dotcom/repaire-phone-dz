@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useListBrands, useCreateBrand, useUpdateBrand, useDeleteBrand } from '@workspace/api-client-react';
+import { ImageUpload } from '@/components/admin/image-upload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,7 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 const brandSchema = z.object({
   name: z.string().min(2, "Le nom est requis"),
   description: z.string().optional(),
-  logoUrl: z.string().url("Doit être une URL valide").optional().or(z.literal('')),
+  logoUrl: z.string().optional(),
   sortOrder: z.coerce.number().min(0).default(0),
 });
 
@@ -263,9 +264,12 @@ export default function AdminBrands() {
                   name="logoUrl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>URL du logo (Optionnel)</FormLabel>
+                      <FormLabel>Logo de la marque</FormLabel>
                       <FormControl>
-                        <Input placeholder="https://..." {...field} />
+                        <ImageUpload
+                          value={field.value}
+                          onChange={(v) => field.onChange(v ?? '')}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
