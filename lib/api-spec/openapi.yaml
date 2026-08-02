@@ -1833,6 +1833,9 @@ components:
           type: string
         paymentMethod:
           $ref: "#/components/schemas/PaymentMethod"
+        idempotencyKey:
+          type: string
+          description: UUID generated client-side to prevent duplicate orders on retry
 
     OrderStatusUpdate:
       type: object

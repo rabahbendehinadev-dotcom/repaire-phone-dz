@@ -938,7 +938,8 @@ export const CreateOrderBody = zod.object({
   "address": zod.string()
 }),
   "notes": zod.string().optional(),
-  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional()
+  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer', 'cib_edahabia']).optional(),
+  "idempotencyKey": zod.string().optional().describe('UUID generated client-side to prevent duplicate orders on retry')
 })
 
 export const CreateOrderResponse = zod.object({

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -50,6 +50,8 @@ export default function CheckoutScreen() {
   const [notes, setNotes] = useState('');
   const [showWilayaPicker, setShowWilayaPicker] = useState(false);
   const [focusedField, setFocusedField] = useState('');
+  // Stable idempotency key per checkout session
+  const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
   const handlePlaceOrder = async () => {
     if (!fullName.trim() || !phone.trim() || !address.trim()) {
@@ -68,6 +70,7 @@ export default function CheckoutScreen() {
             address: address.trim(),
           },
           notes: notes.trim() || undefined,
+          idempotencyKey: idempotencyKeyRef.current,
         },
       });
       await queryClient.invalidateQueries({ queryKey: ['getCart'] });

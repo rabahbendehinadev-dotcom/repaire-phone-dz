@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useCart } from '@/hooks/use-cart-store';
 import { useCreateOrder } from '@workspace/api-client-react';
@@ -82,6 +82,8 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash_on_delivery');
   const [proofUrl, setProofUrl] = useState('');
   const [proofSubmitted, setProofSubmitted] = useState(false);
+  // Stable idempotency key per checkout session — regenerated if user navigates away
+  const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
   const form = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
@@ -110,6 +112,7 @@ export default function Checkout() {
           },
           notes: data.notes,
           paymentMethod,
+          idempotencyKey: idempotencyKeyRef.current,
         }
       });
 

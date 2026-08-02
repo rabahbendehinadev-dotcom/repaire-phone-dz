@@ -30,7 +30,7 @@ router.get("/orders", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/orders", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
-  const { shippingAddress, notes, paymentMethod } = req.body;
+  const { shippingAddress, notes, paymentMethod, idempotencyKey } = req.body;
   if (!shippingAddress) { res.status(400).json({ error: "shippingAddress requis" }); return; }
 
   const validPaymentMethods = ["cash_on_delivery", "bank_transfer", "cib_edahabia"];
@@ -48,14 +48,29 @@ router.post("/orders", requireAuth, async (req, res): Promise<void> => {
   // Payment status: bank_transfer starts as "awaiting_confirmation", others as "pending"
   const initialPaymentStatus = resolvedPaymentMethod === "cash_on_delivery" ? "pending" : "awaiting_confirmation";
 
+  // Atomic idempotency: INSERT ... ON CONFLICT DO NOTHING.
+  // If the insert is skipped (duplicate key), the returning array is empty — we then fetch
+  // the already-existing order. This is race-safe: concurrent retries both resolve to the
+  // same row rather than one crashing with a unique-constraint error.
   const [order] = await db.insert(ordersTable).values({
+    idempotencyKey: idempotencyKey || null,
     userId, status: "pending",
     paymentMethod: resolvedPaymentMethod,
     paymentStatus: initialPaymentStatus,
     subtotal: String(subtotal), discount: "0",
     couponCode: (cart.couponCode as string) || null, shipping: String(shipping), total: String(total),
     shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
-  }).returning();
+  }).onConflictDoNothing().returning();
+
+  if (!order) {
+    // Duplicate request — idempotencyKey already used for this user; return the existing order
+    const [existing] = await db.select().from(ordersTable)
+      .where(and(eq(ordersTable.userId, userId), eq(ordersTable.idempotencyKey, idempotencyKey)));
+    if (!existing) { res.status(500).json({ error: "Erreur idempotence" }); return; }
+    res.status(200).json(formatOrder(existing));
+    return;
+  }
+
   await db.delete(cartTable).where(eq(cartTable.userId, userId));
   res.status(201).json(formatOrder(order));
 });

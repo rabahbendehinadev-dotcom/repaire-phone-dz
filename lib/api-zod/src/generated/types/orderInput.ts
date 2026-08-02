@@ -12,4 +12,6 @@ export interface OrderInput {
   shippingAddress: Address;
   notes?: string;
   paymentMethod?: PaymentMethod;
+  /** UUID generated client-side to prevent duplicate orders on retry */
+  idempotencyKey?: string;
 }
