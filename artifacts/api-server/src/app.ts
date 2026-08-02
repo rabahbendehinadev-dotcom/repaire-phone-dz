@@ -55,7 +55,8 @@ if (process.env.NODE_ENV === "production") {
   if (existsSync(publicDir)) {
     app.use(express.static(publicDir, { maxAge: "1y", immutable: true }));
     // SPA fallback — all non-/api routes return index.html
-    app.get("*", (_req, res) => {
+    // Express 5 requires a named wildcard: "/{*path}" not bare "*"
+    app.get("/{*path}", (_req, res) => {
       res.sendFile(path.join(publicDir, "index.html"));
     });
     logger.info({ publicDir }, "Serving frontend static files");
