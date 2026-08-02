@@ -24,12 +24,11 @@ export default function Home() {
   const scrollNext = useCallback(() => emblaApi && emblaApi.scrollNext(), [emblaApi]);
 
   useEffect(() => {
-    if (emblaApi) {
-      const autoplay = setInterval(() => {
-        emblaApi.scrollNext();
-      }, 5000);
-      return () => clearInterval(autoplay);
-    }
+    if (!emblaApi) return;
+    const autoplay = setInterval(() => {
+      emblaApi.scrollNext();
+    }, 5000);
+    return () => clearInterval(autoplay);
   }, [emblaApi]);
 
   return (

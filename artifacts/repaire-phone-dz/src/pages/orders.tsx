@@ -21,7 +21,7 @@ export default function Orders() {
 
   if (isLoading) return <div className="p-20 text-center">Chargement...</div>;
 
-  if (!data?.orders || data.orders.length === 0) {
+  if (!data || data.length === 0) {
     return (
       <div className="container mx-auto px-4 py-20 max-w-2xl text-center">
         <div className="w-32 h-32 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-8">
@@ -41,7 +41,7 @@ export default function Orders() {
       <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight mb-8">Mes Commandes</h1>
       
       <div className="space-y-4 md:space-y-6">
-        {data.orders.map((order) => {
+        {data.map((order) => {
           const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
           const StatusIcon = status.icon;
 
@@ -71,7 +71,7 @@ export default function Orders() {
                   </div>
                   <div className="p-6 bg-card flex items-center justify-between">
                     <div className="flex -space-x-4">
-                      {order.items?.slice(0, 4).map((item, i) => (
+                      {(order.items as any[])?.slice(0, 4).map((item: any, i: number) => (
                         <div key={i} className="h-14 w-14 rounded-lg bg-white border-2 border-card flex items-center justify-center overflow-hidden shadow-sm relative z-10">
                           <img src={item.images?.[0] || 'https://placehold.co/100'} alt="" className="max-h-full object-contain" />
                         </div>

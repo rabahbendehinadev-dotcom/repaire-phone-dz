@@ -40,6 +40,7 @@ export function MultiImageUpload({
   value,
   onChange,
   maxImages = 10,
+  spec,
 }: MultiImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [altTexts, setAltTexts] = useState<Record<string, string>>({});

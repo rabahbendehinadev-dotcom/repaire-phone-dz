@@ -128,6 +128,7 @@ function Calendar({
           return (
             <div
               data-slot="calendar"
+              // @ts-expect-error React 19 cross-package Ref type variance
               ref={rootRef}
               className={cn(className)}
               {...props}

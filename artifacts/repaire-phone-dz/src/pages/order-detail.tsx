@@ -19,7 +19,8 @@ const STATUS_CONFIG: Record<string, { label: string, color: string, icon: any }>
 export default function OrderDetail() {
   const { id } = useParams();
   const orderId = parseInt(id || '0');
-  const { data: order, isLoading } = useGetOrder(orderId, { query: { enabled: !!orderId } });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: order, isLoading } = useGetOrder(orderId, { query: { enabled: !!orderId } as any });
 
   if (isLoading) return <div className="p-20 text-center">Chargement...</div>;
   if (!order) return <div className="p-20 text-center">Commande introuvable</div>;

@@ -1,6 +1,6 @@
 import { useGetProduct, useGetRelatedProducts } from '@workspace/api-client-react';
 import { getImageSrc, getProductImageSrc } from '@/lib/image-utils';
-import { useParams, Link } from 'wouter';
+import { useParams, Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -15,9 +15,12 @@ export default function ProductDetail() {
   const { id } = useParams();
   const productId = parseInt(id || '0');
   
-  const { data: product, isLoading } = useGetProduct(productId, { query: { enabled: !!productId } });
-  const { data: relatedProducts } = useGetRelatedProducts(productId, { query: { enabled: !!productId } });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: product, isLoading } = useGetProduct(productId, { query: { enabled: !!productId } as any });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: relatedProducts } = useGetRelatedProducts(productId, { query: { enabled: !!productId } as any });
   
+  const [, setLocation] = useLocation();
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   

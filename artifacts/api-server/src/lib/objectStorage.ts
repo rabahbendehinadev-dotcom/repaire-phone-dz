@@ -10,25 +10,63 @@ import {
   setObjectAclPolicy,
 } from './objectAcl';
 
-const REPLIT_SIDECAR_ENDPOINT = 'http://127.0.0.1:1106';
+// ── Authentication ────────────────────────────────────────────────────────────
+// On Replit: an internal sidecar at 127.0.0.1:1106 handles GCS credentials.
+// Outside Replit (Docker / Dokploy / VPS): use a standard GCP service-account
+//   key supplied via GCP_SERVICE_ACCOUNT_KEY (inline JSON string, recommended)
+//   or GOOGLE_APPLICATION_CREDENTIALS (path to key file, standard GCP ADC).
 
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: 'replit',
-    subject_token_type: 'access_token',
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: 'external_account',
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: 'json',
-        subject_token_field_name: 'access_token',
-      },
-    },
-    universe_domain: 'googleapis.com',
-  },
-  projectId: '',
-});
+const REPLIT_SIDECAR_ENDPOINT = 'http://127.0.0.1:1106';
+const IS_REPLIT = !!process.env.REPL_ID;
+
+function createStorageClient(): Storage {
+  if (IS_REPLIT) {
+    // Replit managed credentials via sidecar
+    return new Storage({
+      credentials: {
+        audience: 'replit',
+        subject_token_type: 'access_token',
+        token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
+        type: 'external_account',
+        credential_source: {
+          url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+          format: {
+            type: 'json',
+            subject_token_field_name: 'access_token',
+          },
+        },
+        universe_domain: 'googleapis.com',
+      } as any,
+      projectId: '',
+    });
+  }
+
+  // Option A: inline JSON key (recommended for Dokploy — paste the JSON as a
+  // single-line string in the GCP_SERVICE_ACCOUNT_KEY environment variable)
+  const inlineKey = process.env.GCP_SERVICE_ACCOUNT_KEY;
+  if (inlineKey) {
+    let credentials: Record<string, unknown>;
+    try {
+      credentials = JSON.parse(inlineKey) as Record<string, unknown>;
+    } catch {
+      throw new Error(
+        'GCP_SERVICE_ACCOUNT_KEY is not valid JSON. ' +
+          'Paste the full service-account key file as a single-line string.',
+      );
+    }
+    return new Storage({
+      credentials: credentials as any,
+      projectId: (credentials.project_id as string) || undefined,
+    });
+  }
+
+  // Option B: GOOGLE_APPLICATION_CREDENTIALS env var (path to key file).
+  // The GCS SDK picks this up automatically — no explicit config needed.
+  // Also works with GCP Workload Identity (e.g. GKE, Cloud Run).
+  return new Storage();
+}
+
+export const objectStorageClient = createStorageClient();
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -243,30 +281,45 @@ async function signObjectURL({
   method: 'GET' | 'PUT' | 'DELETE' | 'HEAD';
   ttlSec: number;
 }): Promise<string> {
-  const request = {
-    bucket_name: bucketName,
-    object_name: objectName,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-  const response = await fetch(
-    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+  if (IS_REPLIT) {
+    // On Replit: delegate to the sidecar which has access to the signing key
+    const request = {
+      bucket_name: bucketName,
+      object_name: objectName,
+      method,
+      expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
+    };
+    const response = await fetch(
+      `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+        signal: AbortSignal.timeout(30_000),
       },
-      body: JSON.stringify(request),
-      signal: AbortSignal.timeout(30_000),
-    },
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`,
     );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to sign object URL via Replit sidecar, status: ${response.status}`,
+      );
+    }
+    const { signed_url: signedURL } = await response.json() as { signed_url: string };
+    return signedURL;
   }
 
-  const { signed_url: signedURL } = await response.json();
-  return signedURL;
+  // Outside Replit: use the GCS SDK's native V4 signed URL
+  const actionMap: Record<string, 'read' | 'write' | 'delete'> = {
+    GET: 'read',
+    PUT: 'write',
+    DELETE: 'delete',
+    HEAD: 'read',
+  };
+  const bucket = objectStorageClient.bucket(bucketName);
+  const file = bucket.file(objectName);
+  const [url] = await file.getSignedUrl({
+    version: 'v4',
+    action: actionMap[method] ?? 'read',
+    expires: Date.now() + ttlSec * 1000,
+  });
+  return url;
 }

@@ -471,7 +471,7 @@ export default function AdminOrders() {
                                   size="sm"
                                   className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
                                   onClick={() => handleUpdatePayment(selectedOrder.id, 'confirmed')}
-                                  disabled={updatePayment.isPending}
+                                  disabled={updateStatus.isPending}
                                 >
                                   <CheckCircle2 className="h-4 w-4" />
                                   Confirmer le paiement
@@ -481,7 +481,7 @@ export default function AdminOrders() {
                                   variant="outline"
                                   className="border-destructive/50 text-destructive hover:bg-destructive/10 gap-1.5"
                                   onClick={() => handleUpdatePayment(selectedOrder.id, 'failed')}
-                                  disabled={updatePayment.isPending}
+                                  disabled={updateStatus.isPending}
                                 >
                                   <XCircle className="h-4 w-4" />
                                   Rejeter

@@ -1,7 +1,14 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 
-const JWT_SECRET = process.env.SESSION_SECRET || "repaire-phone-dz-secret-2024";
+const _rawSessionSecret = process.env.SESSION_SECRET;
+if (!_rawSessionSecret) {
+  throw new Error(
+    "SESSION_SECRET environment variable is required but was not set. " +
+      "Generate one with: openssl rand -hex 64",
+  );
+}
+const JWT_SECRET: string = _rawSessionSecret;
 
 export function signToken(userId: number, role: string): string {
   return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: "7d" });
