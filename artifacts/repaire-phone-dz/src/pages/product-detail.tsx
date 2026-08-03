@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Star, ShoppingCart, Heart, Shield, Truck, RotateCcw, Check, Plus, Minus } from 'lucide-react';
+import { Star, ShoppingCart, Heart, Shield, Truck, RotateCcw, Plus, Minus, XCircle } from 'lucide-react';
+import { StockBadge } from '@/components/ui/stock-badge';
 import { useState } from 'react';
 import { useCart } from '@/hooks/use-cart-store';
 import { useWishlist } from '@/hooks/use-wishlist';
@@ -145,19 +146,7 @@ export default function ProductDetail() {
             </div>
             
             <div className="mt-4 flex items-center gap-2">
-              {product.stock > 10 ? (
-                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
-                  <Check className="w-3 h-3 mr-1" /> En stock
-                </Badge>
-              ) : product.stock > 0 ? (
-                <Badge variant="outline" className="bg-warning/10 text-warning-foreground border-warning/20">
-                  <Check className="w-3 h-3 mr-1" /> Stock limité ({product.stock})
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">
-                  Rupture de stock
-                </Badge>
-              )}
+              <StockBadge stock={product.stock} />
             </div>
           </div>
 
@@ -183,15 +172,18 @@ export default function ProductDetail() {
               </div>
               
               <Button 
-                className="flex-1 h-12 text-base font-bold bg-secondary hover:bg-secondary/90 text-white shadow-lg shadow-secondary/20"
+                className="flex-1 h-12 text-base font-bold bg-secondary hover:bg-secondary/90 text-white shadow-lg shadow-secondary/20 disabled:opacity-60"
                 disabled={product.stock === 0}
                 onClick={() => {
                   addToCart(product.id, quantity);
                   toast.success(`${quantity}x ${product.name} ajouté au panier`);
                 }}
               >
-                <ShoppingCart className="mr-2 h-5 w-5" />
-                Ajouter au panier
+                {product.stock === 0 ? (
+                  <><XCircle className="mr-2 h-5 w-5" />Rupture de stock</>
+                ) : (
+                  <><ShoppingCart className="mr-2 h-5 w-5" />Ajouter au panier</>
+                )}
               </Button>
               
               <Button 

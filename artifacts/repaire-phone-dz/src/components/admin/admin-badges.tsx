@@ -1,10 +1,16 @@
 /**
  * Shared admin badge components — consistent status/stock colors across all
  * admin pages. Light + dark mode support, accessible contrast ratios.
+ *
+ * StockBadge and isCriticalStock live in @/components/ui/stock-badge and are
+ * re-exported here so admin pages only need one import.
  */
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// Re-export the shared storefront StockBadge so admin pages stay in sync
+export { StockBadge, isCriticalStock } from '@/components/ui/stock-badge';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 // Each semantic meaning maps to one set of Tailwind classes so the whole admin
@@ -21,61 +27,6 @@ export const statusTokens = {
   indigo:   'bg-indigo-100  text-indigo-700  border-indigo-300  dark:bg-indigo-900/40  dark:text-indigo-400  dark:border-indigo-700',
   neutral:  'bg-gray-100    text-gray-600    border-gray-300    dark:bg-gray-800       dark:text-gray-400    dark:border-gray-700',
 } as const;
-
-// ── Stock Badge ───────────────────────────────────────────────────────────────
-
-interface StockBadgeProps {
-  stock: number;
-  className?: string;
-}
-
-export function StockBadge({ stock, className }: StockBadgeProps) {
-  const base = 'gap-1 font-semibold px-2 py-0.5 text-xs whitespace-nowrap';
-
-  if (stock === 0) {
-    return (
-      <Badge variant="outline" className={cn(base, statusTokens.danger_solid, className)}>
-        <XCircle className="h-3 w-3 shrink-0" />
-        0 — Rupture
-      </Badge>
-    );
-  }
-  if (stock <= 5) {
-    return (
-      <Badge variant="outline" className={cn(base, statusTokens.danger, className)}>
-        <AlertTriangle className="h-3 w-3 shrink-0" />
-        {stock} — Stock critique
-      </Badge>
-    );
-  }
-  if (stock <= 10) {
-    return (
-      <Badge variant="outline" className={cn(base, statusTokens.orange, className)}>
-        <AlertTriangle className="h-3 w-3 shrink-0" />
-        {stock} — Stock faible
-      </Badge>
-    );
-  }
-  if (stock <= 30) {
-    return (
-      <Badge variant="outline" className={cn(base, statusTokens.warning, className)}>
-        <CheckCircle2 className="h-3 w-3 shrink-0" />
-        {stock} — Stock moyen
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className={cn(base, statusTokens.success, className)}>
-      <CheckCircle2 className="h-3 w-3 shrink-0" />
-      {stock} — En stock
-    </Badge>
-  );
-}
-
-/** True when stock level warrants a red row highlight */
-export function isCriticalStock(stock: number) {
-  return stock <= 5;
-}
 
 // ── Product status badges ─────────────────────────────────────────────────────
 
