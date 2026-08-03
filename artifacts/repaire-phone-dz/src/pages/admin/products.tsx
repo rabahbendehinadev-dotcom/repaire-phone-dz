@@ -15,6 +15,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { Plus, Search, Edit, Trash2, Image as ImageIcon, CheckCircle2, AlertCircle, Package, MoreHorizontal, FileDown, Eye, CheckSquare, Square } from 'lucide-react';
+import { StockBadge, FeaturedBadge, NewBadge, isCriticalStock } from '@/components/admin/admin-badges';
+import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -318,7 +320,11 @@ export default function AdminProducts() {
                   </td>
                 </tr>
               ) : productsData?.products.map((product) => (
-                <tr key={product.id} className={`hover:bg-muted/30 transition-colors ${selectedRowIds.has(product.id) ? 'bg-primary/5' : ''}`}>
+                <tr key={product.id} className={cn(
+                  'hover:bg-muted/30 transition-colors',
+                  selectedRowIds.has(product.id) ? 'bg-primary/5' : '',
+                  isCriticalStock(product.stock) && !selectedRowIds.has(product.id) ? 'bg-red-50/50 dark:bg-red-950/10' : ''
+                )}>
                   <td className="px-4 py-3">
                     <button onClick={() => toggleRowSelection(product.id)} className="text-muted-foreground hover:text-foreground focus:outline-none">
                       {selectedRowIds.has(product.id) ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
@@ -335,7 +341,7 @@ export default function AdminProducts() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="font-semibold text-foreground line-clamp-1">{product.name}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5 font-mono">{product.sku || 'Sans SKU'}</div>
+                    <div className="text-xs text-muted-foreground/70 mt-0.5 font-mono">{product.sku || 'Sans SKU'}</div>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-sm">
                     {product.categoryName || '-'}
@@ -343,23 +349,17 @@ export default function AdminProducts() {
                   <td className="px-4 py-3">
                     <div className="font-bold text-foreground">{product.price.toLocaleString('fr-DZ')} DA</div>
                     {product.comparePrice && product.comparePrice > product.price && (
-                      <div className="text-xs text-muted-foreground line-through">{product.comparePrice.toLocaleString('fr-DZ')} DA</div>
+                      <div className="text-xs text-muted-foreground/60 line-through">{product.comparePrice.toLocaleString('fr-DZ')} DA</div>
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <Badge variant="outline" className={`px-2 py-0.5 text-xs font-semibold
-                      ${product.stock > 10 ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : ''}
-                      ${product.stock > 0 && product.stock <= 10 ? 'bg-warning/10 text-warning-foreground border-warning/20' : ''}
-                      ${product.stock <= 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : ''}
-                    `}>
-                      {product.stock}
-                    </Badge>
+                    <StockBadge stock={product.stock} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1">
-                      {product.isFeatured && <Badge variant="secondary" className="text-[10px] py-0 leading-none h-4 w-fit">En avant</Badge>}
-                      {product.isNew && <Badge variant="outline" className="text-[10px] py-0 leading-none h-4 w-fit bg-primary/5 text-primary border-primary/20">Nouveau</Badge>}
-                      {(!product.isFeatured && !product.isNew) && <span className="text-muted-foreground text-xs">-</span>}
+                      {product.isFeatured && <FeaturedBadge />}
+                      {product.isNew && <NewBadge />}
+                      {(!product.isFeatured && !product.isNew) && <span className="text-muted-foreground/50 text-xs">—</span>}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">

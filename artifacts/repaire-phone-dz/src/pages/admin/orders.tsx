@@ -17,12 +17,12 @@ import { useListAllOrders, useUpdateOrderStatus, getListAllOrdersQueryKey } from
 import { cn } from '@/lib/utils';
 
 const STATUS_OPTIONS = [
-  { value: 'pending', label: 'En attente', color: 'bg-warning/10 text-warning-foreground border-warning/20' },
-  { value: 'confirmed', label: 'Confirmée', color: 'bg-blue-500/10 text-blue-600 border-blue-200' },
-  { value: 'processing', label: 'En préparation', color: 'bg-purple-500/10 text-purple-600 border-purple-200' },
-  { value: 'shipped', label: 'Expédiée', color: 'bg-indigo-500/10 text-indigo-600 border-indigo-200' },
-  { value: 'delivered', label: 'Livrée', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200' },
-  { value: 'cancelled', label: 'Annulée', color: 'bg-destructive/10 text-destructive border-destructive/20' },
+  { value: 'pending',    label: 'En attente',      color: 'bg-amber-100   text-amber-700   border-amber-300   dark:bg-amber-900/40  dark:text-amber-400  dark:border-amber-700' },
+  { value: 'confirmed',  label: 'Confirmée',        color: 'bg-blue-100    text-blue-700    border-blue-300    dark:bg-blue-900/40   dark:text-blue-400   dark:border-blue-700' },
+  { value: 'processing', label: 'En préparation',   color: 'bg-purple-100  text-purple-700  border-purple-300  dark:bg-purple-900/40 dark:text-purple-400 dark:border-purple-700' },
+  { value: 'shipped',    label: 'Expédiée',         color: 'bg-indigo-100  text-indigo-700  border-indigo-300  dark:bg-indigo-900/40 dark:text-indigo-400 dark:border-indigo-700' },
+  { value: 'delivered',  label: 'Livrée',           color: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-700' },
+  { value: 'cancelled',  label: 'Annulée',          color: 'bg-red-100     text-red-700     border-red-300     dark:bg-red-900/40    dark:text-red-400    dark:border-red-700' },
 ];
 
 const PAYMENT_STATUS_OPTIONS = [

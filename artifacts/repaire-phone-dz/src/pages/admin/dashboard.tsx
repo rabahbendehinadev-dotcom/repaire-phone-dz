@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { cn } from '@/lib/utils';
 
 export default function AdminDashboard() {
   const { data: stats, isLoading: statsLoading } = useGetAdminDashboard();
@@ -69,21 +70,23 @@ export default function AdminDashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        {/* Chiffre d'affaires — emerald */}
         <Card className="shadow-sm border-border overflow-hidden relative group">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 rounded-l-xl" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pl-5">
             <CardTitle className="text-sm font-medium text-muted-foreground">Chiffre d'affaires</CardTitle>
-            <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
-              <DollarSign className="h-4 w-4 text-primary" />
+            <div className="h-9 w-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+              <DollarSign className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pl-5">
             <div className="text-2xl font-extrabold text-foreground tracking-tight">
               {stats.totalSales.toLocaleString('fr-DZ')} <span className="text-sm font-normal text-muted-foreground ml-1">DA</span>
             </div>
             {stats.salesThisMonth !== undefined && (
               <p className="text-xs mt-2 flex items-center gap-1">
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-200 px-1 py-0 shadow-none font-medium">
+                <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-700 px-1.5 py-0 shadow-none font-semibold">
                   <TrendingUp className="h-3 w-3 mr-1" />
                   +{stats.salesThisMonth.toLocaleString('fr-DZ')} DA
                 </Badge>
@@ -93,19 +96,21 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
+        {/* Commandes — blue */}
         <Card className="shadow-sm border-border overflow-hidden relative group">
-          <div className="absolute inset-0 bg-gradient-to-br from-secondary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l-xl" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pl-5">
             <CardTitle className="text-sm font-medium text-muted-foreground">Commandes</CardTitle>
-            <div className="h-8 w-8 rounded-md bg-secondary/10 flex items-center justify-center">
-              <ShoppingCart className="h-4 w-4 text-secondary" />
+            <div className="h-9 w-9 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+              <ShoppingCart className="h-4.5 w-4.5 text-blue-600 dark:text-blue-400" />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pl-5">
             <div className="text-2xl font-extrabold text-foreground tracking-tight">{stats.totalOrders}</div>
             {stats.ordersThisMonth !== undefined && (
               <p className="text-xs mt-2 flex items-center gap-1">
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-200 px-1 py-0 shadow-none font-medium">
+                <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-400 dark:border-blue-700 px-1.5 py-0 shadow-none font-semibold">
                   <TrendingUp className="h-3 w-3 mr-1" />
                   +{stats.ordersThisMonth}
                 </Badge>
@@ -115,34 +120,39 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
+        {/* Clients — orange */}
         <Card className="shadow-sm border-border overflow-hidden relative group">
-          <div className="absolute inset-0 bg-gradient-to-br from-navy/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500 rounded-l-xl" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pl-5">
             <CardTitle className="text-sm font-medium text-muted-foreground">Clients Inscrits</CardTitle>
-            <div className="h-8 w-8 rounded-md bg-navy/10 flex items-center justify-center">
-              <Users className="h-4 w-4 text-navy" />
+            <div className="h-9 w-9 rounded-lg bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
+              <Users className="h-4.5 w-4.5 text-orange-600 dark:text-orange-400" />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pl-5">
             <div className="text-2xl font-extrabold text-foreground tracking-tight">{stats.totalCustomers}</div>
+            <p className="text-xs mt-2 text-muted-foreground">clients inscrits</p>
           </CardContent>
         </Card>
 
+        {/* Produits — violet */}
         <Card className="shadow-sm border-border overflow-hidden relative group">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-violet-500 rounded-l-xl" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pl-5">
             <CardTitle className="text-sm font-medium text-muted-foreground">Produits Actifs</CardTitle>
-            <div className="h-8 w-8 rounded-md bg-blue-500/10 flex items-center justify-center">
-              <Package className="h-4 w-4 text-blue-500" />
+            <div className="h-9 w-9 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center">
+              <Package className="h-4.5 w-4.5 text-violet-600 dark:text-violet-400" />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pl-5">
             <div className="text-2xl font-extrabold text-foreground tracking-tight">{stats.totalProducts}</div>
             {stats.lowStockCount > 0 && (
               <p className="text-xs mt-2">
-                <span className="text-destructive font-medium flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" /> {stats.lowStockCount} rupture(s) imminente(s)
-                </span>
+                <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-400 dark:border-red-700 px-1.5 py-0 shadow-none font-semibold gap-1">
+                  <AlertTriangle className="h-3 w-3" /> {stats.lowStockCount} alerte(s) stock
+                </Badge>
               </p>
             )}
           </CardContent>
@@ -295,12 +305,14 @@ export default function AdminDashboard() {
                       <div className="text-xs text-muted-foreground mt-0.5">{product.price.toLocaleString('fr-DZ')} DA</div>
                     </div>
                     <div className="flex flex-col items-end shrink-0">
-                      <Badge variant="outline" className={
-                        product.stock <= 0 ? 'bg-destructive/10 text-destructive border-destructive/20' :
-                        product.stock <= 5 ? 'bg-warning/10 text-warning-foreground border-warning/20' :
-                        'bg-emerald-500/10 text-emerald-600 border-emerald-200'
-                      }>
-                        {product.stock} stock
+                      <Badge variant="outline" className={cn(
+                        'text-xs font-semibold',
+                        product.stock === 0 ? 'bg-red-600 text-white border-red-700' :
+                        product.stock <= 5  ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-400 dark:border-red-700' :
+                        product.stock <= 10 ? 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/40 dark:text-orange-400 dark:border-orange-700' :
+                        'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-700'
+                      )}>
+                        {product.stock} en stock
                       </Badge>
                     </div>
                   </div>
