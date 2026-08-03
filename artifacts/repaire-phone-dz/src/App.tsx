@@ -36,6 +36,7 @@ import AdminCustomers from '@/pages/admin/customers';
 import AdminUsers from '@/pages/admin/users';
 import AdminActivity from '@/pages/admin/activity';
 import AdminSettings from '@/pages/admin/settings';
+import AdminNoest from '@/pages/admin/noest';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,6 +95,7 @@ function AdminRoutes() {
               <Route path="/admin/users" component={AdminUsers} />
               <Route path="/admin/activity" component={AdminActivity} />
               <Route path="/admin/settings" component={AdminSettings} />
+              <Route path="/admin/noest" component={AdminNoest} />
               <Route component={NotFound} />
             </Switch>
           </AdminLayout>

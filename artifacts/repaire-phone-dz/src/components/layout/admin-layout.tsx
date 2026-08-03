@@ -2,7 +2,7 @@ import React, { ReactNode, useEffect } from 'react';
 import { useAdminAuth } from '@/hooks/use-admin-auth';
 import { useLocation, Link } from 'wouter';
 import { 
-  LayoutDashboard, Box, Tags, ShoppingCart, Users, Ticket, 
+  LayoutDashboard, Box, Tags, ShoppingCart, Users, Ticket, Truck,
   Image as ImageIcon, Settings, Activity, LogOut, ChevronDown, UserCircle, Bell, Search, Sun, Moon, Laptop, Shield
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
@@ -55,6 +55,7 @@ const navGroups = [
     title: 'Commerce',
     items: [
       { label: 'Commandes', href: '/admin/orders', icon: ShoppingCart },
+      { label: 'Livraisons NOEST', href: '/admin/noest', icon: Truck },
       { label: 'Clients', href: '/admin/customers', icon: Users },
       { label: 'Coupons', href: '/admin/coupons', icon: Ticket },
     ]
@@ -99,6 +100,7 @@ function AdminHeader() {
       settings: 'Paramètres',
       users: 'Utilisateurs',
       activity: 'Activité',
+      noest: 'Livraisons NOEST',
     };
     return {
       href,

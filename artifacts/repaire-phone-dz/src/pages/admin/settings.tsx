@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
-import { Store, Phone, Mail, MapPin, Share2, Search, Truck, Lock, CreditCard } from 'lucide-react';
+import { Store, Phone, Mail, MapPin, Share2, Search, Truck, Lock, CreditCard, Wifi, CheckCircle2, XCircle, Package } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetSettingsQueryKey } from '@workspace/api-client-react';
@@ -162,6 +162,9 @@ export default function AdminSettings() {
             </TabsTrigger>
             <TabsTrigger value="security" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-6">
               <Lock className="h-4 w-4 mr-2" /> Sécurité
+            </TabsTrigger>
+            <TabsTrigger value="noest" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-6">
+              <Truck className="h-4 w-4 mr-2" /> NOEST Express
             </TabsTrigger>
           </TabsList>
         </div>
@@ -476,7 +479,135 @@ export default function AdminSettings() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <NoestSettingsTab />
       </Tabs>
     </div>
+  );
+}
+
+// ── NOEST settings tab — self-contained with its own state ────────────────────
+function NoestSettingsTab() {
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [defaultDeliveryType, setDefaultDeliveryType] = useState<'home_delivery' | 'stop_desk'>('home_delivery');
+  const [defaultWeight, setDefaultWeight] = useState('1');
+  const [defaultDescription, setDefaultDescription] = useState('Pièces détachées smartphones');
+
+  const testConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/admin/noest/test-connection', { credentials: 'include' });
+      const data = await res.json();
+      setTestResult({ ok: data.ok ?? res.ok, message: data.message ?? (res.ok ? 'Connexion réussie' : 'Échec') });
+    } catch (err: any) {
+      setTestResult({ ok: false, message: err.message ?? 'Erreur réseau' });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <TabsContent value="noest" className="mt-0 outline-none space-y-6">
+      {/* Connection test */}
+      <Card className="border-border shadow-sm">
+        <CardHeader className="border-b border-border/50 pb-4">
+          <CardTitle className="flex items-center gap-2">
+            <Truck className="h-5 w-5 text-primary" /> NOEST Express
+          </CardTitle>
+          <CardDescription>
+            Configurez l'intégration avec le transporteur NOEST Express. Les clés API sont gérées via les variables d'environnement du serveur.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-6 max-w-2xl">
+          {/* Env vars info */}
+          <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
+            <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Lock className="h-4 w-4 text-muted-foreground" /> Variables d'environnement requises
+            </p>
+            <div className="grid grid-cols-1 gap-1 font-mono text-xs text-muted-foreground">
+              <span className="bg-background px-2 py-1 rounded border border-border">NOEST_API_BASE_URL</span>
+              <span className="bg-background px-2 py-1 rounded border border-border">NOEST_API_TOKEN</span>
+              <span className="bg-background px-2 py-1 rounded border border-border">NOEST_USER_GUID</span>
+              <span className="bg-background px-2 py-1 rounded border border-border">NOEST_WEBHOOK_SECRET <span className="text-muted-foreground/60">(optionnel)</span></span>
+            </div>
+            <p className="text-xs text-muted-foreground">Ces variables doivent être définies dans les Secrets du serveur. Elles ne sont jamais exposées au frontend.</p>
+          </div>
+
+          {/* Test connection */}
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-foreground">Test de connexion</p>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={testConnection}
+                disabled={testing}
+                className="gap-2"
+              >
+                <Wifi className={testing ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} />
+                {testing ? 'Test en cours…' : 'Tester la connexion NOEST'}
+              </Button>
+              {testResult && (
+                <span className={`flex items-center gap-1.5 text-sm font-medium ${testResult.ok ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {testResult.ok
+                    ? <><CheckCircle2 className="h-4 w-4" /> {testResult.message}</>
+                    : <><XCircle className="h-4 w-4" /> {testResult.message}</>
+                  }
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Default settings */}
+          <div className="space-y-4 pt-4 border-t border-border/50">
+            <p className="text-sm font-semibold text-foreground">Valeurs par défaut pour les expéditions</p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Type de livraison par défaut</label>
+              <select
+                value={defaultDeliveryType}
+                onChange={e => setDefaultDeliveryType(e.target.value as any)}
+                className="w-full max-w-sm h-9 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="home_delivery">Livraison à domicile</option>
+                <option value="stop_desk">Stop Desk</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Poids par défaut (kg)</label>
+              <Input
+                type="number"
+                min="0.1"
+                step="0.1"
+                value={defaultWeight}
+                onChange={e => setDefaultWeight(e.target.value)}
+                className="max-w-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description du colis par défaut</label>
+              <Input
+                value={defaultDescription}
+                onChange={e => setDefaultDescription(e.target.value)}
+                placeholder="ex: Pièces détachées smartphones"
+                className="max-w-lg"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Ces valeurs sont utilisées comme suggestions lors de l'envoi d'une commande à NOEST. Elles peuvent être modifiées à chaque envoi.
+            </p>
+          </div>
+
+          {/* Link to NOEST page */}
+          <div className="pt-4 border-t border-border/50">
+            <a href="/admin/noest" className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline">
+              <Package className="h-4 w-4" />
+              Voir toutes les livraisons NOEST →
+            </a>
+          </div>
+        </CardContent>
+      </Card>
+    </TabsContent>
   );
 }

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Eye, Filter, Download, MapPin, User, Package, Calendar, CheckSquare, Square, Printer, CreditCard, ExternalLink, CheckCircle2, XCircle, Truck, Banknote, Clock } from 'lucide-react';
+import { Search, Eye, Filter, Download, MapPin, User, Package, Calendar, CheckSquare, Square, Printer, CreditCard, ExternalLink, CheckCircle2, XCircle, Truck, Banknote, Clock, Send, RefreshCw, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -48,6 +48,9 @@ export default function AdminOrders() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(new Set());
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [noestSending, setNoestSending] = useState(false);
+  const [noestSyncing, setNoestSyncing] = useState(false);
+  const [noestDeliveryType, setNoestDeliveryType] = useState<'home_delivery' | 'stop_desk'>('home_delivery');
 
   const queryClient = useQueryClient();
 
@@ -92,6 +95,60 @@ export default function AdminOrders() {
       }
     } catch (err: any) {
       toast.error('Erreur lors de la mise à jour du statut');
+    }
+  };
+
+  // ── NOEST helpers ─────────────────────────────────────────────────────────
+
+  const DELIVERY_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+    sent_to_noest:   { label: 'Envoyé à NOEST',    color: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-400' },
+    en_preparation:  { label: 'En préparation',     color: 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/40 dark:text-purple-400' },
+    expedie:         { label: 'Expédié',            color: 'bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-400' },
+    en_transit:      { label: 'En transit',         color: 'bg-cyan-100 text-cyan-700 border-cyan-300 dark:bg-cyan-900/40 dark:text-cyan-400' },
+    en_livraison:    { label: 'En livraison',       color: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/40 dark:text-amber-400' },
+    livre:           { label: 'Livré',              color: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-400' },
+    echec_livraison: { label: 'Échec de livraison', color: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-400' },
+    retour:          { label: 'Retour',             color: 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/40 dark:text-orange-400' },
+    annule:          { label: 'Annulé',             color: 'bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-400' },
+  };
+
+  const handleSendToNoest = async (orderId: number) => {
+    setNoestSending(true);
+    try {
+      const res = await fetch(`/api/admin/noest/shipments/${orderId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ deliveryType: noestDeliveryType }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
+      toast.success(`Envoyé à NOEST ✓ — Tracking: ${data.trackingNumber}`);
+      queryClient.invalidateQueries({ queryKey: getListAllOrdersQueryKey() });
+      setSelectedOrder((o: any) => o ? { ...o, deliveryProvider: 'noest', noestShipmentId: data.shipmentId, trackingNumber: data.trackingNumber, trackingUrl: data.trackingUrl, labelUrl: data.labelUrl, deliveryStatus: data.deliveryStatus, sentToCarrierAt: new Date().toISOString() } : o);
+    } catch (err: any) {
+      toast.error(err.message ?? 'Erreur lors de l\'envoi à NOEST');
+    } finally {
+      setNoestSending(false);
+    }
+  };
+
+  const handleSyncNoest = async (orderId: number) => {
+    setNoestSyncing(true);
+    try {
+      const res = await fetch(`/api/admin/noest/shipments/${orderId}/sync`, {
+        method: 'POST', credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Erreur');
+      const cfg = DELIVERY_STATUS_LABELS[data.status];
+      toast.success(`Statut mis à jour → ${cfg?.label ?? data.status}`);
+      queryClient.invalidateQueries({ queryKey: getListAllOrdersQueryKey() });
+      setSelectedOrder((o: any) => o ? { ...o, deliveryStatus: data.status } : o);
+    } catch (err: any) {
+      toast.error(err.message ?? 'Erreur de synchronisation');
+    } finally {
+      setNoestSyncing(false);
     }
   };
 
@@ -615,6 +672,122 @@ export default function AdminOrders() {
                         </CardContent>
                       </Card>
                     )}
+
+                    {/* ── NOEST Express ───────────────────────────────── */}
+                    <Card className={cn(
+                      "shadow-sm border-border print:hidden",
+                      selectedOrder.deliveryStatus === 'echec_livraison' && "border-red-300 bg-red-50/40 dark:bg-red-950/10",
+                      selectedOrder.deliveryStatus === 'retour' && "border-orange-300 bg-orange-50/40 dark:bg-orange-950/10",
+                      selectedOrder.deliveryStatus === 'livre' && "border-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/10",
+                    )}>
+                      <CardHeader className="py-3 border-b border-border bg-muted/20">
+                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                          <Truck className="h-4 w-4 text-primary" /> NOEST Express
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-4 space-y-3">
+                        {!selectedOrder.noestShipmentId ? (
+                          /* Not yet sent */
+                          <div className="space-y-3">
+                            <p className="text-xs text-muted-foreground">Commande non encore envoyée à NOEST.</p>
+                            <div className="space-y-2">
+                              <Label className="text-xs font-medium">Type de livraison</Label>
+                              <select
+                                value={noestDeliveryType}
+                                onChange={e => setNoestDeliveryType(e.target.value as any)}
+                                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="home_delivery">Livraison à domicile</option>
+                                <option value="stop_desk">Stop Desk</option>
+                              </select>
+                            </div>
+                            <Button
+                              size="sm"
+                              className="w-full gap-2 bg-primary hover:bg-primary/90"
+                              onClick={() => handleSendToNoest(selectedOrder.id)}
+                              disabled={noestSending}
+                            >
+                              <Send className={cn('h-3.5 w-3.5', noestSending && 'animate-pulse')} />
+                              {noestSending ? 'Envoi en cours…' : 'Envoyer à NOEST'}
+                            </Button>
+                          </div>
+                        ) : (
+                          /* Already sent — show tracking info */
+                          <div className="space-y-3">
+                            {/* Delivery status badge */}
+                            {selectedOrder.deliveryStatus && (() => {
+                              const cfg = DELIVERY_STATUS_LABELS[selectedOrder.deliveryStatus];
+                              return cfg ? (
+                                <div className={cn('inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border', cfg.color)}>
+                                  {cfg.label}
+                                </div>
+                              ) : null;
+                            })()}
+
+                            {/* Tracking number */}
+                            {selectedOrder.trackingNumber && (
+                              <div className="flex items-center gap-2">
+                                <code className="flex-1 text-xs bg-muted px-2 py-1 rounded font-mono border border-border">
+                                  {selectedOrder.trackingNumber}
+                                </code>
+                                {selectedOrder.trackingUrl && (
+                                  <a
+                                    href={selectedOrder.trackingUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary hover:text-primary/80"
+                                    title="Suivre le colis"
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </a>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Alert for returns/failures */}
+                            {(selectedOrder.deliveryStatus === 'echec_livraison' || selectedOrder.deliveryStatus === 'retour') && (
+                              <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-2">
+                                <XCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                                <span>
+                                  {selectedOrder.deliveryStatus === 'retour'
+                                    ? 'Colis retourné — vérifiez avec NOEST avant de réapprovisionner le stock.'
+                                    : 'Échec de livraison — contactez le client pour replanifier.'}
+                                </span>
+                              </div>
+                            )}
+
+                            {selectedOrder.deliveryStatus === 'livre' && (
+                              <div className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Livré avec succès
+                              </div>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex gap-2 pt-1 flex-wrap">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5 text-xs h-8"
+                                onClick={() => handleSyncNoest(selectedOrder.id)}
+                                disabled={noestSyncing}
+                              >
+                                <RefreshCw className={cn('h-3 w-3', noestSyncing && 'animate-spin')} />
+                                Mettre à jour
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5 text-xs h-8"
+                                onClick={() => window.open(`/api/admin/noest/shipments/${selectedOrder.id}/label`, '_blank')}
+                              >
+                                <Printer className="h-3 w-3" />
+                                Bordereau
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
                   </div>
                 </div>
               </div>

@@ -20,6 +20,16 @@ export const ordersTable = pgTable("orders", {
   shippingAddress: jsonb("shipping_address").notNull(),
   items: jsonb("items").notNull(),
   notes: text("notes"),
+  // NOEST Express delivery fields
+  deliveryProvider: text("delivery_provider"),        // 'noest' | null
+  noestShipmentId: text("noest_shipment_id"),
+  trackingNumber: text("tracking_number"),
+  trackingUrl: text("tracking_url"),
+  labelUrl: text("label_url"),
+  deliveryStatus: text("delivery_status"),            // sent_to_noest | en_preparation | ... | livre
+  sentToCarrierAt: timestamp("sent_to_carrier_at", { withTimezone: true }),
+  lastTrackingSyncAt: timestamp("last_tracking_sync_at", { withTimezone: true }),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => ({
