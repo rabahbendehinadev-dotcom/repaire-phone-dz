@@ -85,9 +85,11 @@ router.get("/products", async (req, res): Promise<void> => {
   const offset = (pageNum - 1) * limitNum;
 
   const conditions: any[] = [];
-  if (categoryId) conditions.push(eq(productsTable.categoryId, parseInt(categoryId, 10)));
-  if (brandId) conditions.push(eq(productsTable.brandId, parseInt(brandId, 10)));
-  if (search) conditions.push(ilike(productsTable.name, `%${search}%`));
+  const parsedCatId = parseInt(categoryId, 10);
+  const parsedBrandId = parseInt(brandId, 10);
+  if (categoryId && !isNaN(parsedCatId)) conditions.push(eq(productsTable.categoryId, parsedCatId));
+  if (brandId && !isNaN(parsedBrandId)) conditions.push(eq(productsTable.brandId, parsedBrandId));
+  if (search && search !== 'null') conditions.push(ilike(productsTable.name, `%${search}%`));
   if (minPrice) conditions.push(gte(productsTable.price, minPrice));
   if (maxPrice) conditions.push(lte(productsTable.price, maxPrice));
   if (inStock === "true") conditions.push(gte(productsTable.stock, sql`1`));

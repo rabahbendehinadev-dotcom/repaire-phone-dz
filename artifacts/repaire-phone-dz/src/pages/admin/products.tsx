@@ -109,6 +109,7 @@ export default function AdminProducts() {
       setEditingProduct(null);
       form.reset();
       queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: ['products'] }); // invalidate storefront cache
     } catch (err: any) {
       toast.error(editingProduct ? 'Erreur lors de la mise à jour' : 'Erreur lors de la création');
     }
@@ -120,6 +121,7 @@ export default function AdminProducts() {
       await deleteProduct.mutateAsync({ id: deleteConfirmId });
       toast.success('Produit supprimé avec succès');
       queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: ['products'] }); // invalidate storefront cache
     } catch (err: any) {
       toast.error('Erreur lors de la suppression');
     } finally {

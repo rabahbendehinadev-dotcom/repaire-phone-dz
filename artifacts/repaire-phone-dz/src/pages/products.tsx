@@ -40,12 +40,12 @@ export default function Products() {
   const { data: brands } = useListBrands();
   
   const { data: productsData, isLoading } = useListProducts({
-    search: search || null,
-    categoryId,
-    brandId,
-    isNew: isNew ? true : null,
-    hasDiscount: hasDiscount ? true : null,
-    inStock: inStock ? true : null,
+    search: search || undefined,
+    categoryId: categoryId ?? undefined,
+    brandId: brandId ?? undefined,
+    isNew: isNew || undefined,
+    hasDiscount: hasDiscount || undefined,
+    inStock: inStock || undefined,
     sortBy: sortBy as any,
     limit: 24,
   }, { query: { queryKey: ['products', search, categoryId, brandId, isNew, hasDiscount, inStock, sortBy] } });
