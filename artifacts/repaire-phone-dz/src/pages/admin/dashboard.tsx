@@ -14,7 +14,7 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'rec
 import { cn } from '@/lib/utils';
 
 export default function AdminDashboard() {
-  const { data: stats, isLoading: statsLoading } = useGetAdminDashboard();
+  const { data: stats, isLoading: statsLoading, error: statsError, refetch } = useGetAdminDashboard();
 
   const [salesPeriod, setSalesPeriod] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
   const { data: salesData, isLoading: salesLoading } = useGetSalesChart({ period: salesPeriod });
@@ -33,7 +33,27 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!stats) return null;
+  if (statsError || !stats) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+        <div className="h-14 w-14 rounded-full bg-destructive/10 flex items-center justify-center">
+          <AlertTriangle className="h-7 w-7 text-destructive" />
+        </div>
+        <div>
+          <p className="font-semibold text-foreground text-lg">Impossible de charger le tableau de bord</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {statsError ? 'Erreur lors de la récupération des données.' : 'Aucune donnée disponible.'}
+          </p>
+        </div>
+        <button
+          onClick={() => refetch()}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-background hover:bg-muted transition-colors text-sm font-medium"
+        >
+          <TrendingUp className="h-4 w-4" /> Réessayer
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

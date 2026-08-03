@@ -27,6 +27,7 @@ import {
   useSidebar
 } from '@/components/ui/sidebar';
 import { ThemeProvider, useTheme } from '@/hooks/use-theme';
+import { AdminErrorBoundary } from '@/components/admin/admin-error-boundary';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -298,7 +299,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             <AdminHeader />
             <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
               <div className="mx-auto w-full max-w-7xl animate-in fade-in duration-300">
-                {children}
+                <AdminErrorBoundary>
+                  {children}
+                </AdminErrorBoundary>
               </div>
             </main>
           </SidebarInset>

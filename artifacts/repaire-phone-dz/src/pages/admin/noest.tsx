@@ -66,11 +66,13 @@ export default function AdminNoest() {
   const [statusFilter, setStatusFilter] = useState('all');
   const queryClient = useQueryClient();
 
-  const { data: shipments = [], isLoading } = useQuery({
+  const { data: shipmentsRaw, isLoading, error: queryError } = useQuery({
     queryKey: ['noest', 'shipments'],
     queryFn: () => apiFetch('GET', '/shipments'),
     refetchInterval: 5 * 60_000, // auto-refresh every 5 min
+    retry: 2,
   });
+  const shipments: any[] = Array.isArray(shipmentsRaw) ? shipmentsRaw : [];
 
   const syncAll = useMutation({
     mutationFn: () => apiFetch('POST', '/sync-all'),
