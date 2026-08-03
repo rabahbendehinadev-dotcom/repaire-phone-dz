@@ -6,6 +6,33 @@ import { requireAdminSession, requirePermission, logActivity, getIp } from "../l
 
 const router: IRouter = Router();
 
+/**
+ * Safe column set that excludes NOEST delivery columns added in migration 0001.
+ * Using `ordersTable` directly in db.select() generates an explicit column list;
+ * if the production DB hasn't run the migration yet it throws "column does not exist".
+ * Once the migration is applied on production this guard can be removed.
+ */
+const baseOrderCols = {
+  id: ordersTable.id,
+  idempotencyKey: ordersTable.idempotencyKey,
+  userId: ordersTable.userId,
+  status: ordersTable.status,
+  paymentMethod: ordersTable.paymentMethod,
+  paymentStatus: ordersTable.paymentStatus,
+  paymentProofUrl: ordersTable.paymentProofUrl,
+  paymentNotes: ordersTable.paymentNotes,
+  subtotal: ordersTable.subtotal,
+  discount: ordersTable.discount,
+  couponCode: ordersTable.couponCode,
+  shipping: ordersTable.shipping,
+  total: ordersTable.total,
+  shippingAddress: ordersTable.shippingAddress,
+  items: ordersTable.items,
+  notes: ordersTable.notes,
+  createdAt: ordersTable.createdAt,
+  updatedAt: ordersTable.updatedAt,
+} as const;
+
 function formatOrder(o: any) {
   return {
     id: o.id, userId: o.userId, userName: o.userName || null, userEmail: o.userEmail || null,
@@ -43,7 +70,7 @@ router.post("/orders/guest", async (req, res): Promise<void> => {
     subtotal: String(subtotal), discount: "0",
     couponCode: null, shipping: String(shipping), total: String(total),
     shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
-  }).returning();
+  }).returning(baseOrderCols);
   res.status(201).json(formatOrder(order));
 });
 
@@ -52,18 +79,18 @@ router.patch("/orders/guest/:id/payment-proof", async (req, res): Promise<void> 
   const id = parseInt(req.params.id as string, 10);
   const { paymentProofUrl } = req.body;
   if (!paymentProofUrl) { res.status(400).json({ error: "paymentProofUrl requis" }); return; }
-  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+  const [order] = await db.select(baseOrderCols).from(ordersTable).where(eq(ordersTable.id, id));
   if (!order) { res.status(404).json({ error: "Commande non trouvée" }); return; }
   if (order.userId !== null) { res.status(403).json({ error: "Utilisez l'endpoint authentifié" }); return; }
   const [updated] = await db.update(ordersTable)
     .set({ paymentProofUrl, paymentStatus: "awaiting_confirmation" })
-    .where(eq(ordersTable.id, id)).returning();
+    .where(eq(ordersTable.id, id)).returning(baseOrderCols);
   res.json(formatOrder(updated));
 });
 
 router.get("/orders", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
-  const orders = await db.select().from(ordersTable).where(eq(ordersTable.userId, userId)).orderBy(desc(ordersTable.createdAt));
+  const orders = await db.select(baseOrderCols).from(ordersTable).where(eq(ordersTable.userId, userId)).orderBy(desc(ordersTable.createdAt));
   res.json(orders.map(formatOrder));
 });
 
@@ -99,11 +126,11 @@ router.post("/orders", requireAuth, async (req, res): Promise<void> => {
     subtotal: String(subtotal), discount: "0",
     couponCode: (cart.couponCode as string) || null, shipping: String(shipping), total: String(total),
     shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
-  }).onConflictDoNothing().returning();
+  }).onConflictDoNothing().returning(baseOrderCols);
 
   if (!order) {
     // Duplicate request — idempotencyKey already used for this user; return the existing order
-    const [existing] = await db.select().from(ordersTable)
+    const [existing] = await db.select(baseOrderCols).from(ordersTable)
       .where(and(eq(ordersTable.userId, userId), eq(ordersTable.idempotencyKey, idempotencyKey)));
     if (!existing) { res.status(500).json({ error: "Erreur idempotence" }); return; }
     res.status(200).json(formatOrder(existing));
@@ -118,7 +145,7 @@ router.get("/orders/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const userId = (req as any).userId;
   const userRole = (req as any).userRole;
-  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+  const [order] = await db.select(baseOrderCols).from(ordersTable).where(eq(ordersTable.id, id));
   if (!order) { res.status(404).json({ error: "Commande non trouvée" }); return; }
   if (order.userId !== userId && userRole !== "admin" && userRole !== "staff") {
     res.status(403).json({ error: "Accès refusé" }); return;
@@ -134,7 +161,7 @@ router.patch("/orders/:id/payment-proof", requireAuth, async (req, res): Promise
 
   if (!paymentProofUrl) { res.status(400).json({ error: "paymentProofUrl requis" }); return; }
 
-  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+  const [order] = await db.select(baseOrderCols).from(ordersTable).where(eq(ordersTable.id, id));
   if (!order) { res.status(404).json({ error: "Commande non trouvée" }); return; }
   if (order.userId !== userId) { res.status(403).json({ error: "Accès refusé" }); return; }
   if (order.paymentMethod !== "bank_transfer") {
@@ -144,7 +171,7 @@ router.patch("/orders/:id/payment-proof", requireAuth, async (req, res): Promise
   const [updated] = await db.update(ordersTable)
     .set({ paymentProofUrl, paymentStatus: "awaiting_confirmation" })
     .where(eq(ordersTable.id, id))
-    .returning();
+    .returning(baseOrderCols);
   res.json(formatOrder(updated));
 });
 
@@ -160,7 +187,7 @@ router.get("/admin/orders", requireAdminSession, requirePermission("manage_order
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(ordersTable).where(whereClause);
   const orders = await db.select({
-    order: ordersTable, userName: usersTable.name, userEmail: usersTable.email
+    order: baseOrderCols, userName: usersTable.name, userEmail: usersTable.email
   }).from(ordersTable).leftJoin(usersTable, eq(ordersTable.userId, usersTable.id))
     .where(whereClause).orderBy(desc(ordersTable.createdAt)).limit(limitNum).offset(offset);
   res.json({ orders: orders.map((o) => formatOrder({ ...o.order, userName: o.userName, userEmail: o.userEmail })), total: count, page: pageNum, totalPages: Math.ceil(count / limitNum) });
@@ -170,8 +197,8 @@ router.patch("/admin/orders/:id/status", requireAdminSession, requirePermission(
   const id = parseInt(req.params.id as string, 10);
   const { status } = req.body;
   if (!status) { res.status(400).json({ error: "status requis" }); return; }
-  const [old] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
-  const [order] = await db.update(ordersTable).set({ status }).where(eq(ordersTable.id, id)).returning();
+  const [old] = await db.select(baseOrderCols).from(ordersTable).where(eq(ordersTable.id, id));
+  const [order] = await db.update(ordersTable).set({ status }).where(eq(ordersTable.id, id)).returning(baseOrderCols);
   if (!order) { res.status(404).json({ error: "Commande non trouvée" }); return; }
   await logActivity(req.adminUser!.id, req.adminUser!.fullName, "update_order_status", "order", id, { status: old?.status }, { status }, getIp(req));
   res.json(formatOrder(order));
@@ -187,7 +214,7 @@ router.patch("/admin/orders/:id/payment", requireAdminSession, requirePermission
     res.status(400).json({ error: "paymentStatus invalide" }); return;
   }
 
-  const [old] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+  const [old] = await db.select(baseOrderCols).from(ordersTable).where(eq(ordersTable.id, id));
   if (!old) { res.status(404).json({ error: "Commande non trouvée" }); return; }
 
   const updates: Record<string, unknown> = { paymentStatus };
@@ -198,7 +225,7 @@ router.patch("/admin/orders/:id/payment", requireAdminSession, requirePermission
     updates.status = "confirmed";
   }
 
-  const [order] = await db.update(ordersTable).set(updates).where(eq(ordersTable.id, id)).returning();
+  const [order] = await db.update(ordersTable).set(updates).where(eq(ordersTable.id, id)).returning(baseOrderCols);
   await logActivity(req.adminUser!.id, req.adminUser!.fullName, "update_payment_status", "order", id,
     { paymentStatus: old.paymentStatus }, { paymentStatus, paymentNotes }, getIp(req));
   res.json(formatOrder(order));

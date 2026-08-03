@@ -5,6 +5,33 @@ import { requireAdminSession, requirePermission, logActivity, getIp } from "../l
 
 const router: IRouter = Router();
 
+/**
+ * Safe column set that excludes NOEST delivery columns added in migration 0001.
+ * Using `ordersTable` directly in db.select() generates an explicit column list;
+ * if the production DB hasn't run the migration yet it throws "column does not exist".
+ * Once the migration is applied on production this guard can be removed.
+ */
+const baseOrderCols = {
+  id: ordersTable.id,
+  idempotencyKey: ordersTable.idempotencyKey,
+  userId: ordersTable.userId,
+  status: ordersTable.status,
+  paymentMethod: ordersTable.paymentMethod,
+  paymentStatus: ordersTable.paymentStatus,
+  paymentProofUrl: ordersTable.paymentProofUrl,
+  paymentNotes: ordersTable.paymentNotes,
+  subtotal: ordersTable.subtotal,
+  discount: ordersTable.discount,
+  couponCode: ordersTable.couponCode,
+  shipping: ordersTable.shipping,
+  total: ordersTable.total,
+  shippingAddress: ordersTable.shippingAddress,
+  items: ordersTable.items,
+  notes: ordersTable.notes,
+  createdAt: ordersTable.createdAt,
+  updatedAt: ordersTable.updatedAt,
+} as const;
+
 function formatOrder(o: any) {
   return {
     id: o.id, userId: o.userId, userName: o.userName || null, userEmail: o.userEmail || null,
@@ -42,7 +69,7 @@ router.get("/admin/dashboard", requireAdminSession, requirePermission("view_dash
   const [salesMonthRow] = await db.select({ sum: sql<string>`coalesce(sum(total),0)::text` }).from(ordersTable).where(and(eq(ordersTable.status, "delivered"), gte(ordersTable.createdAt, startOfMonth)));
   const [ordersMonthRow] = await db.select({ count: sql<number>`count(*)::int` }).from(ordersTable).where(gte(ordersTable.createdAt, startOfMonth));
 
-  const recentOrders = await db.select({ order: ordersTable, userName: usersTable.name, userEmail: usersTable.email })
+  const recentOrders = await db.select({ order: baseOrderCols, userName: usersTable.name, userEmail: usersTable.email })
     .from(ordersTable).leftJoin(usersTable, eq(ordersTable.userId, usersTable.id))
     .orderBy(desc(ordersTable.createdAt)).limit(5);
 
@@ -81,7 +108,7 @@ router.get("/admin/customers/:id", requireAdminSession, requirePermission("manag
   const id = parseInt(req.params.id as string, 10);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
   if (!user) { res.status(404).json({ error: "Client non trouvé" }); return; }
-  const orders = await db.select().from(ordersTable).where(eq(ordersTable.userId, id)).orderBy(desc(ordersTable.createdAt)).limit(10);
+  const orders = await db.select(baseOrderCols).from(ordersTable).where(eq(ordersTable.userId, id)).orderBy(desc(ordersTable.createdAt)).limit(10);
   res.json({
     user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, isBlocked: user.isBlocked, totalOrders: orders.length, totalSpent: orders.reduce((s, o) => s + parseFloat(o.total), 0), createdAt: user.createdAt.toISOString() },
     orders: orders.map(formatOrder),
