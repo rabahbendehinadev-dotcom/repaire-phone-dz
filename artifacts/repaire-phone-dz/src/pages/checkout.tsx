@@ -86,7 +86,7 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash_on_delivery');
   const [proofUrl, setProofUrl] = useState('');
   const [proofSubmitted, setProofSubmitted] = useState(false);
-  const [selectedDeliveryType, setSelectedDeliveryType] = useState<DeliveryType | null>(null);
+  const [selectedDeliveryType, setSelectedDeliveryType] = useState<DeliveryType>('home');
   const [deliveryTypeError, setDeliveryTypeError] = useState(false);
   const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
   const deliverySectionRef = useRef<HTMLDivElement>(null);
