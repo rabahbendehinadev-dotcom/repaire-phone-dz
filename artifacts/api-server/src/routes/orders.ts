@@ -100,18 +100,23 @@ router.post("/orders/guest", async (req, res): Promise<void> => {
   const { shipping, meta: shippingMeta } = await computeShipping(wilayaCode, deliveryType, officeId);
   const total = subtotal + shipping;
   const initialPaymentStatus = resolvedPaymentMethod === "cash_on_delivery" ? "pending" : "awaiting_confirmation";
-  const [order] = await db.insert(ordersTable).values({
-    idempotencyKey: idempotencyKey || null,
-    userId: null, // guest — no account
-    status: "pending",
-    paymentMethod: resolvedPaymentMethod,
-    paymentStatus: initialPaymentStatus,
-    subtotal: String(subtotal), discount: "0",
-    couponCode: null, shipping: String(shipping), total: String(total),
-    shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
-    ...shippingMeta as any,
-  }).returning(baseOrderCols);
-  res.status(201).json(formatOrder(order));
+  try {
+    const [order] = await db.insert(ordersTable).values({
+      idempotencyKey: idempotencyKey || null,
+      userId: null, // guest — no account
+      status: "pending",
+      paymentMethod: resolvedPaymentMethod,
+      paymentStatus: initialPaymentStatus,
+      subtotal: String(subtotal), discount: "0",
+      couponCode: null, shipping: String(shipping), total: String(total),
+      shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
+      ...shippingMeta as any,
+    }).returning(baseOrderCols);
+    res.status(201).json(formatOrder(order));
+  } catch (err: any) {
+    console.error("[guest order] DB error:", err?.message ?? err);
+    res.status(500).json({ error: "Erreur lors de la création de la commande. Veuillez réessayer." });
+  }
 });
 
 // Guest: submit payment proof by order ID (no account needed)
@@ -158,28 +163,33 @@ router.post("/orders", requireAuth, async (req, res): Promise<void> => {
   // If the insert is skipped (duplicate key), the returning array is empty — we then fetch
   // the already-existing order. This is race-safe: concurrent retries both resolve to the
   // same row rather than one crashing with a unique-constraint error.
-  const [order] = await db.insert(ordersTable).values({
-    idempotencyKey: idempotencyKey || null,
-    userId, status: "pending",
-    paymentMethod: resolvedPaymentMethod,
-    paymentStatus: initialPaymentStatus,
-    subtotal: String(subtotal), discount: "0",
-    couponCode: (cart.couponCode as string) || null, shipping: String(shipping), total: String(total),
-    shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
-    ...shippingMeta as any,
-  }).onConflictDoNothing().returning(baseOrderCols);
+  try {
+    const [order] = await db.insert(ordersTable).values({
+      idempotencyKey: idempotencyKey || null,
+      userId, status: "pending",
+      paymentMethod: resolvedPaymentMethod,
+      paymentStatus: initialPaymentStatus,
+      subtotal: String(subtotal), discount: "0",
+      couponCode: (cart.couponCode as string) || null, shipping: String(shipping), total: String(total),
+      shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
+      ...shippingMeta as any,
+    }).onConflictDoNothing().returning(baseOrderCols);
 
-  if (!order) {
-    // Duplicate request — idempotencyKey already used for this user; return the existing order
-    const [existing] = await db.select(baseOrderCols).from(ordersTable)
-      .where(and(eq(ordersTable.userId, userId), eq(ordersTable.idempotencyKey, idempotencyKey)));
-    if (!existing) { res.status(500).json({ error: "Erreur idempotence" }); return; }
-    res.status(200).json(formatOrder(existing));
-    return;
+    if (!order) {
+      // Duplicate request — idempotencyKey already used for this user; return the existing order
+      const [existing] = await db.select(baseOrderCols).from(ordersTable)
+        .where(and(eq(ordersTable.userId, userId), eq(ordersTable.idempotencyKey, idempotencyKey)));
+      if (!existing) { res.status(500).json({ error: "Erreur idempotence" }); return; }
+      res.status(200).json(formatOrder(existing));
+      return;
+    }
+
+    await db.delete(cartTable).where(eq(cartTable.userId, userId));
+    res.status(201).json(formatOrder(order));
+  } catch (err: any) {
+    console.error("[auth order] DB error:", err?.message ?? err);
+    res.status(500).json({ error: "Erreur lors de la création de la commande. Veuillez réessayer." });
   }
-
-  await db.delete(cartTable).where(eq(cartTable.userId, userId));
-  res.status(201).json(formatOrder(order));
 });
 
 router.get("/orders/:id", requireAuth, async (req, res): Promise<void> => {
