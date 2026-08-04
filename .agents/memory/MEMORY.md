@@ -1,3 +1,4 @@
 - [Admin Auth Architecture](admin-auth-architecture.md) — separate HttpOnly cookie admin auth vs JWT storefront auth; all admin routes migrated; Super Admin seeded.
+- [Shipping Rates System](shipping-rates-system.md) — baseOrderCols guard excludes new cols until prod migrations run; computeShipping never trusts frontend price.
 - [Dropdown Menu Component](dropdown-menu-completeness.md) — original shadcn dropdown-menu.tsx was stripped to 4 exports; must have full set including Separator, Label, etc.
 - [Theme Hook JSX Extension](theme-hook-jsx.md) — use-theme must be .tsx (not .ts) because it returns JSX; Vite caches the extension so workflow restart needed after rename.
