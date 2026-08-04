@@ -2,7 +2,48 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import bcrypt from "bcryptjs";
 import { db, adminUsersTable, adminLoginAttemptsTable } from "@workspace/db";
-import { eq, like } from "drizzle-orm";
+import { eq, like, sql } from "drizzle-orm";
+
+/**
+ * Safe, idempotent schema migrations — runs at every startup.
+ * Uses IF NOT EXISTS / IF EXISTS so re-running is always harmless.
+ * This ensures production DBs stay in sync without a manual migrate step.
+ */
+async function runSafeMigrations() {
+  try {
+    // 0001: NOEST shipment tracking columns
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_provider text`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS noest_shipment_id text`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number text`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_url text`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS label_url text`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_status text`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS sent_to_carrier_at timestamptz`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS last_tracking_sync_at timestamptz`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at timestamptz`);
+
+    // 0003: Shipping metadata columns
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_type text`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_wilaya_code text`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_wilaya_name text`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_office_id integer`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_office_name text`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS estimated_delivery_min_days integer`);
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS estimated_delivery_max_days integer`);
+
+    // 0004: Normalize delivery_type values
+    await db.execute(sql`UPDATE orders SET delivery_type = 'home'   WHERE delivery_type = 'domicile'`);
+    await db.execute(sql`UPDATE orders SET delivery_type = 'office' WHERE delivery_type = 'stop_desk'`);
+
+    // shipping_rates columns (0002 / 0004)
+    await db.execute(sql`ALTER TABLE shipping_rates ADD COLUMN IF NOT EXISTS office_delivery_enabled boolean NOT NULL DEFAULT true`);
+    await db.execute(sql`ALTER TABLE shipping_rates ADD COLUMN IF NOT EXISTS office_delivery_price numeric(10,2) NOT NULL DEFAULT 0`);
+
+    logger.info("Safe migrations applied successfully");
+  } catch (err) {
+    logger.error({ err }, "Safe migrations failed — server will still start");
+  }
+}
 
 async function seedSuperAdmin() {
   const email = process.env["ADMIN_EMAIL"];
@@ -75,7 +116,7 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-seedSuperAdmin().then(() => {
+runSafeMigrations().then(() => seedSuperAdmin()).then(() => {
   app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");
