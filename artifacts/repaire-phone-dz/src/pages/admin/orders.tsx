@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Eye, Filter, Download, MapPin, User, Package, Calendar, CheckSquare, Square, Printer, CreditCard, ExternalLink, CheckCircle2, XCircle, Truck, Banknote, Clock, Send, RefreshCw, RotateCcw } from 'lucide-react';
+import { Search, Eye, Filter, Download, MapPin, User, Package, Calendar, CheckSquare, Square, Printer, CreditCard, ExternalLink, CheckCircle2, XCircle, Truck, Banknote, Clock, Send, RefreshCw, RotateCcw, Home, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -51,6 +51,7 @@ export default function AdminOrders() {
   const [noestSending, setNoestSending] = useState(false);
   const [noestSyncing, setNoestSyncing] = useState(false);
   const [noestDeliveryType, setNoestDeliveryType] = useState<'home_delivery' | 'stop_desk'>('home_delivery');
+  const [deliveryFilter, setDeliveryFilter] = useState<'all' | 'home' | 'office'>('all');
 
   const queryClient = useQueryClient();
 
@@ -150,6 +151,20 @@ export default function AdminOrders() {
     } finally {
       setNoestSyncing(false);
     }
+  };
+
+  const getDeliveryBadge = (deliveryType: string | null | undefined) => {
+    if (deliveryType === 'home') return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-900/40 dark:text-sky-400 dark:border-sky-700">
+        <Home className="h-3 w-3" /> Domicile
+      </span>
+    );
+    if (deliveryType === 'office') return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/40 dark:text-orange-400 dark:border-orange-700">
+        <Building2 className="h-3 w-3" /> Bureau
+      </span>
+    );
+    return <span className="text-xs text-muted-foreground">—</span>;
   };
 
   const getStatusBadge = (status: string) => {
@@ -259,6 +274,16 @@ export default function AdminOrders() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={deliveryFilter} onValueChange={(v) => setDeliveryFilter(v as any)}>
+                <SelectTrigger className="w-full sm:w-[145px] h-9 bg-background shadow-sm">
+                  <SelectValue placeholder="Livraison" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes livraisons</SelectItem>
+                  <SelectItem value="home"><span className="flex items-center gap-1.5"><Home className="h-3.5 w-3.5" /> Domicile</span></SelectItem>
+                  <SelectItem value="office"><span className="flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5" /> Bureau</span></SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
@@ -310,6 +335,7 @@ export default function AdminOrders() {
                 <th className="px-4 py-3 font-semibold">Statut</th>
                 <th className="px-4 py-3 font-semibold">Paiement</th>
                 <th className="px-4 py-3 font-semibold">Total</th>
+                <th className="px-4 py-3 font-semibold">Livraison</th>
                 <th className="px-4 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
@@ -324,12 +350,13 @@ export default function AdminOrders() {
                     <td className="px-4 py-4"><Skeleton className="h-6 w-24 rounded-full" /></td>
                     <td className="px-4 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
                     <td className="px-4 py-4"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
                     <td className="px-4 py-4 text-right"><Skeleton className="h-8 w-8 ml-auto" /></td>
                   </tr>
                 ))
               ) : ordersData?.orders?.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16 text-center">
+                  <td colSpan={9} className="px-4 py-16 text-center">
                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                       <Package className="h-12 w-12 mb-4 text-muted-foreground/30" />
                       <p className="text-lg font-medium text-foreground">Aucune commande trouvée</p>
@@ -337,7 +364,7 @@ export default function AdminOrders() {
                     </div>
                   </td>
                 </tr>
-              ) : ordersData?.orders.map((order) => (
+              ) : (ordersData?.orders ?? []).filter(o => deliveryFilter === 'all' || (o as any).deliveryType === deliveryFilter).map((order) => (
                 <tr key={order.id} className={`hover:bg-muted/30 transition-colors ${selectedRowIds.has(order.id) ? 'bg-primary/5' : ''}`}>
                   <td className="px-4 py-3">
                     <button onClick={() => toggleRowSelection(order.id)} className="text-muted-foreground hover:text-foreground transition-colors focus:outline-none">
@@ -381,6 +408,9 @@ export default function AdminOrders() {
                   </td>
                   <td className="px-4 py-3 font-bold text-foreground whitespace-nowrap">
                     {order.total.toLocaleString('fr-DZ')} DA
+                  </td>
+                  <td className="px-4 py-3">
+                    {getDeliveryBadge((order as any).deliveryType)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => { setSelectedOrder(order); setPaymentNotes(''); }}>
@@ -641,24 +671,75 @@ export default function AdminOrders() {
 
                     <Card className="shadow-sm border-border print:border-none print:shadow-none">
                       <CardHeader className="py-4 border-b border-border bg-muted/20 print:bg-transparent print:border-b-2 print:border-black">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <CardTitle className="text-base font-semibold flex items-center gap-2 flex-wrap">
                           <MapPin className="h-4 w-4" /> Livraison
+                          {getDeliveryBadge(selectedOrder.deliveryType)}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 space-y-3 text-sm">
-                        <div>
-                          <p className="font-medium text-muted-foreground mb-1">Destinataire</p>
+                        {/* Mode */}
+                        <div className="flex items-center gap-2">
+                          {selectedOrder.deliveryType === 'home'
+                            ? <Home className="h-4 w-4 text-sky-600 shrink-0" />
+                            : selectedOrder.deliveryType === 'office'
+                              ? <Building2 className="h-4 w-4 text-orange-600 shrink-0" />
+                              : null}
+                          <span className="font-semibold">
+                            {selectedOrder.deliveryType === 'home' ? 'Livraison à domicile'
+                              : selectedOrder.deliveryType === 'office' ? 'Livraison au bureau'
+                              : 'Mode non spécifié'}
+                          </span>
+                        </div>
+
+                        {/* Contact */}
+                        <div className="pt-2 border-t border-border/50">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Destinataire</p>
                           <p className="font-semibold">{selectedOrder.shippingAddress?.fullName}</p>
                           <p className="text-muted-foreground">{selectedOrder.shippingAddress?.phone}</p>
                         </div>
-                        <div className="pt-3 border-t border-border/50">
-                          <p className="font-medium text-muted-foreground mb-1">Adresse</p>
-                          <p className="leading-relaxed">
-                            {selectedOrder.shippingAddress?.address}<br/>
-                            {selectedOrder.shippingAddress?.commune && <>{selectedOrder.shippingAddress.commune}<br/></>}
-                            <span className="font-semibold text-foreground uppercase">{selectedOrder.shippingAddress?.wilaya}</span>
-                          </p>
+
+                        {/* Wilaya / Commune */}
+                        <div className="pt-2 border-t border-border/50 space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Wilaya</span>
+                            <span className="font-medium">{selectedOrder.shippingWilayaName || selectedOrder.shippingAddress?.wilaya || '—'}</span>
+                          </div>
+                          {selectedOrder.shippingAddress?.commune && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Commune</span>
+                              <span className="font-medium">{selectedOrder.shippingAddress.commune}</span>
+                            </div>
+                          )}
                         </div>
+
+                        {/* Address — home only */}
+                        {selectedOrder.deliveryType === 'home' && selectedOrder.shippingAddress?.address && (
+                          <div className="pt-2 border-t border-border/50">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Adresse détaillée</p>
+                            <p className="leading-relaxed text-foreground">{selectedOrder.shippingAddress.address}</p>
+                          </div>
+                        )}
+
+                        {/* Preferred office — office only */}
+                        {selectedOrder.deliveryType === 'office' && selectedOrder.shippingOfficeName && (
+                          <div className="pt-2 border-t border-border/50">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Bureau souhaité</p>
+                            <p className="font-medium text-foreground">{selectedOrder.shippingOfficeName}</p>
+                          </div>
+                        )}
+                        {selectedOrder.deliveryType === 'office' && !selectedOrder.shippingOfficeName && (
+                          <div className="pt-2 border-t border-border/50">
+                            <p className="text-xs text-muted-foreground italic">Bureau à confirmer par téléphone</p>
+                          </div>
+                        )}
+
+                        {/* Notes */}
+                        {selectedOrder.notes && (
+                          <div className="pt-2 border-t border-border/50">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Notes</p>
+                            <p className="text-foreground italic">{selectedOrder.notes}</p>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
 

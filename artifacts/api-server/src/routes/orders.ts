@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
-import { db, ordersTable, cartTable, usersTable, shippingRatesTable } from "@workspace/db";
+import { db, ordersTable, cartTable, usersTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { requireAdminSession, requirePermission, logActivity, getIp } from "../lib/admin-auth";
 
@@ -65,46 +65,42 @@ function formatOrder(o: any) {
 }
 
 /**
- * Compute shipping cost server-side from shipping_rates. Never trusts frontend price.
- * Returns { error } when the wilaya or delivery method is inactive/unavailable.
- * Callers should convert error to HTTP 400.
+ * Simple delivery validation — no rate lookup, no per-wilaya pricing.
+ * Shipping is always 0 (confirmed by phone). Only validates that deliveryType is 'home' or 'office'.
  */
-async function computeShipping(
-  wilayaCode: string | undefined, deliveryType: string | undefined,
-): Promise<{ shipping: number; meta: Record<string, unknown>; error?: string }> {
-  if (!wilayaCode || !deliveryType) {
-    return { shipping: 500, meta: {} };
+function computeShipping(
+  deliveryType: string | undefined,
+  shippingAddress: Record<string, unknown> | undefined,
+  preferredOfficeName?: string,
+): { shipping: number; meta: Record<string, unknown>; error?: string } {
+  if (!deliveryType || !["home", "office"].includes(deliveryType)) {
+    return { shipping: 0, meta: {}, error: "Le mode de livraison doit être 'home' ou 'office'." };
   }
-  const code = String(wilayaCode).padStart(2, "0");
-  const [rate] = await db.select().from(shippingRatesTable).where(eq(shippingRatesTable.wilayaCode, code));
-  if (!rate || !rate.isActive) {
-    return { shipping: 0, meta: {}, error: "La livraison n'est pas disponible pour cette wilaya." };
+  if (deliveryType === "home" && !String(shippingAddress?.address ?? "").trim()) {
+    return { shipping: 0, meta: {}, error: "L'adresse détaillée est requise pour la livraison à domicile." };
   }
-  let price: number;
-  if (deliveryType === "home" && rate.homeDeliveryEnabled) {
-    price = rate.homeDeliveryPrice;
-  } else if (deliveryType === "office" && rate.officeDeliveryEnabled) {
-    price = rate.officeDeliveryPrice;
-  } else {
-    return { shipping: 0, meta: {}, error: "Le mode de livraison sélectionné n'est pas disponible pour cette wilaya." };
-  }
+  const wilayaRaw = String(shippingAddress?.wilaya ?? "");
+  const wilayaCode = wilayaRaw.split(" - ")[0]?.trim().padStart(2, "0") || null;
+  const wilayaName = wilayaRaw.split(" - ")[1]?.trim() || wilayaRaw || null;
   const meta: Record<string, unknown> = {
-    deliveryType, shippingWilayaCode: code, shippingWilayaName: rate.wilayaName,
-    estimatedDeliveryMinDays: rate.minDeliveryDays, estimatedDeliveryMaxDays: rate.maxDeliveryDays,
+    deliveryType,
+    shippingWilayaCode: wilayaCode,
+    shippingWilayaName: wilayaName,
+    ...(deliveryType === "office" && preferredOfficeName ? { shippingOfficeName: preferredOfficeName } : {}),
   };
-  return { shipping: price, meta };
+  return { shipping: 0, meta };
 }
 
 // ── Guest order (no auth required) ──────────────────────────────────────────
 router.post("/orders/guest", async (req, res): Promise<void> => {
-  const { items, shippingAddress, notes, paymentMethod, idempotencyKey, deliveryType, wilayaCode } = req.body;
+  const { items, shippingAddress, notes, paymentMethod, idempotencyKey, deliveryType, preferredOfficeName } = req.body;
   if (!shippingAddress || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: "items et shippingAddress requis" }); return;
   }
   const validPaymentMethods = ["cash_on_delivery", "bank_transfer", "cib_edahabia"];
   const resolvedPaymentMethod = validPaymentMethods.includes(paymentMethod) ? paymentMethod : "cash_on_delivery";
   const subtotal = items.reduce((s: number, i: any) => s + (Number(i.price) * Number(i.quantity)), 0);
-  const { shipping, meta: shippingMeta, error: shippingError } = await computeShipping(wilayaCode, deliveryType);
+  const { shipping, meta: shippingMeta, error: shippingError } = computeShipping(deliveryType, shippingAddress, preferredOfficeName);
   if (shippingError) { res.status(400).json({ error: shippingError }); return; }
   const total = subtotal + shipping;
   const initialPaymentStatus = resolvedPaymentMethod === "cash_on_delivery" ? "pending" : "awaiting_confirmation";
@@ -149,7 +145,7 @@ router.get("/orders", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/orders", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
-  const { shippingAddress, notes, paymentMethod, idempotencyKey, deliveryType, wilayaCode } = req.body;
+  const { shippingAddress, notes, paymentMethod, idempotencyKey, deliveryType, preferredOfficeName } = req.body;
   if (!shippingAddress) { res.status(400).json({ error: "shippingAddress requis" }); return; }
 
   const validPaymentMethods = ["cash_on_delivery", "bank_transfer", "cib_edahabia"];
@@ -161,7 +157,7 @@ router.post("/orders", requireAuth, async (req, res): Promise<void> => {
   }
   const items = cart.items as any[];
   const subtotal = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
-  const { shipping, meta: shippingMeta, error: shippingError } = await computeShipping(wilayaCode, deliveryType);
+  const { shipping, meta: shippingMeta, error: shippingError } = computeShipping(deliveryType, shippingAddress, preferredOfficeName);
   if (shippingError) { res.status(400).json({ error: shippingError }); return; }
   const total = subtotal + shipping;
 
