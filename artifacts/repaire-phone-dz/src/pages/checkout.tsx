@@ -155,6 +155,18 @@ export default function Checkout() {
 
   const onSubmit = async (data: CheckoutFormValues) => {
     if (!cart || cart.items.length === 0) return;
+    // Block while rate is still loading
+    if (isRateLoading) {
+      toast.error('Veuillez patienter pendant le calcul des frais de livraison'); return;
+    }
+    // Block if wilaya selected but rate unavailable (inactive or not configured)
+    if (watchedWilaya && !wilayaRate) {
+      toast.error('La livraison n\'est pas disponible pour cette wilaya'); return;
+    }
+    // Block if rate loaded but no delivery method selected
+    if (wilayaRate && !selectedDeliveryType) {
+      toast.error('Veuillez choisir un mode de livraison (domicile ou stop desk)'); return;
+    }
     // Validate stop desk office selection
     if (selectedDeliveryType === 'stop_desk' && availableOffices.length > 0 && !selectedOffice) {
       toast.error('Veuillez sélectionner un bureau de livraison Stop Desk'); return;
@@ -720,9 +732,12 @@ export default function Checkout() {
                 type="submit"
                 form="checkout-form"
                 className="w-full h-14 text-base font-bold bg-secondary hover:bg-secondary/90 text-white shadow-lg shadow-secondary/20"
-                disabled={isSubmitting || createOrder.isPending}
+                disabled={isSubmitting || createOrder.isPending || isRateLoading || (!!wilayaRate && !selectedDeliveryType)}
               >
-                {(isSubmitting || createOrder.isPending) ? 'Validation en cours...' : 'Confirmer la commande'}
+                {isRateLoading ? 'Calcul de la livraison...' :
+                 (isSubmitting || createOrder.isPending) ? 'Validation en cours...' :
+                 (wilayaRate && !selectedDeliveryType) ? 'Choisissez un mode de livraison' :
+                 'Confirmer la commande'}
               </Button>
             </CardContent>
           </Card>
