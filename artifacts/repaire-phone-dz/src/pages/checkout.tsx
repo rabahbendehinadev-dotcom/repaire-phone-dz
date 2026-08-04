@@ -559,9 +559,10 @@ export default function Checkout() {
                       <div className="pt-1 space-y-2">
                         <Label className="text-sm font-semibold">Bureau de livraison</Label>
                         {availableOffices.length === 0 ? (
-                          <p className="text-sm text-muted-foreground p-3 bg-muted/20 rounded-lg">
-                            Aucun bureau Stop Desk disponible pour cette wilaya. Veuillez choisir la livraison à domicile.
-                          </p>
+                          <div className="text-sm text-muted-foreground p-3 bg-muted/20 rounded-lg space-y-1">
+                            <p className="font-medium text-foreground">Le bureau sera confirmé par téléphone</p>
+                            <p>Notre équipe vous contactera pour vous indiquer le bureau de retrait le plus proche.</p>
+                          </div>
                         ) : (
                           <Select value={selectedOffice?.id?.toString() ?? ''}
                             onValueChange={val => setSelectedOffice(availableOffices.find(o => o.id.toString() === val) ?? null)}>

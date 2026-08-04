@@ -2,7 +2,7 @@ import React, { ReactNode, useEffect } from 'react';
 import { useAdminAuth } from '@/hooks/use-admin-auth';
 import { useLocation, Link } from 'wouter';
 import { 
-  LayoutDashboard, Box, Tags, ShoppingCart, Users, Ticket, Truck,
+  LayoutDashboard, Box, Tags, ShoppingCart, Users, Ticket, Truck, Building2,
   Image as ImageIcon, Settings, Activity, LogOut, ChevronDown, UserCircle, Bell, Search, Sun, Moon, Laptop, Shield, MapPin
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
@@ -64,6 +64,7 @@ const navGroups = [
     title: 'Livraison',
     items: [
       { label: 'Tarifs de livraison', href: '/admin/shipping-rates', icon: MapPin },
+      { label: 'Bureaux Stop Desk', href: '/admin/shipping-offices', icon: Building2 },
       { label: 'Livraisons NOEST', href: '/admin/noest', icon: Truck },
     ]
   },
@@ -109,6 +110,7 @@ function AdminHeader() {
       activity: 'Activité',
       noest: 'Livraisons NOEST',
       'shipping-rates': 'Tarifs de livraison',
+      'shipping-offices': 'Bureaux Stop Desk',
     };
     return {
       href,
