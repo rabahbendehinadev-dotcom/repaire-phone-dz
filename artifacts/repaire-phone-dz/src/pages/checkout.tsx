@@ -98,6 +98,15 @@ export default function Checkout() {
     defaultValues: { fullName: '', phone: '', wilaya: '', commune: '', address: '', notes: '' },
   });
 
+  // Fetch active wilaya codes once on mount to disable inactive ones in the dropdown
+  const [activeWilayaCodes, setActiveWilayaCodes] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    fetch('/api/shipping/wilayas')
+      .then(r => r.json())
+      .then(d => setActiveWilayaCodes(new Set((d.wilayas as any[]).map(w => w.wilayaCode))))
+      .catch(() => setActiveWilayaCodes(null)); // on error, treat all as available
+  }, []);
+
   // Watch wilaya to fetch shipping rate when it changes
   const watchedWilaya = form.watch('wilaya');
   useEffect(() => {
@@ -105,16 +114,16 @@ export default function Checkout() {
     const code = parseWilayaCode(watchedWilaya);
     if (!code) return;
     setIsRateLoading(true); setWilayaRate(null); setSelectedDeliveryType(null); setSelectedOffice(null);
-    fetch(`/api/shipping/rates/${code}`)
-      .then(r => r.json())
+    fetch(`/api/shipping/wilayas/${code}`)
+      .then(r => r.ok ? r.json() : Promise.reject(r))
       .then(rate => {
-        if (!rate.isActive) return;
+        if (!rate.isActive) return; // leave wilayaRate null → shows "unavailable" message
         setWilayaRate(rate);
-        // Auto-select when only one option is enabled
+        // Auto-select when only one delivery method is enabled
         if (rate.homeDeliveryEnabled && !rate.stopDeskEnabled) setSelectedDeliveryType('domicile');
         else if (!rate.homeDeliveryEnabled && rate.stopDeskEnabled) setSelectedDeliveryType('stop_desk');
       })
-      .catch(() => {})
+      .catch(() => {}) // rate stays null → "unavailable" message shown
       .finally(() => setIsRateLoading(false));
   }, [watchedWilaya]);
 
@@ -125,7 +134,7 @@ export default function Checkout() {
     const code = parseWilayaCode(watchedWilaya);
     if (!code) return;
     setSelectedOffice(null);
-    fetch(`/api/shipping/offices?wilaya=${code}`)
+    fetch(`/api/shipping/offices?wilayaCode=${code}`)
       .then(r => r.json())
       .then(d => setAvailableOffices(d.offices || []))
       .catch(() => setAvailableOffices([]));
@@ -419,7 +428,15 @@ export default function Checkout() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="max-h-60">
-                            {WILAYAS.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                            {WILAYAS.map(w => {
+                              const code = w.split(' - ')[0].trim();
+                              const unavailable = activeWilayaCodes !== null && !activeWilayaCodes.has(code);
+                              return (
+                                <SelectItem key={w} value={w} disabled={unavailable}>
+                                  {w}{unavailable ? ' — Indisponible' : ''}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -469,6 +486,14 @@ export default function Checkout() {
                   <div className="space-y-3">
                     <div className="h-16 rounded-xl bg-muted/40 animate-pulse" />
                     <div className="h-16 rounded-xl bg-muted/40 animate-pulse" />
+                  </div>
+                ) : !wilayaRate ? (
+                  <div className="flex items-start gap-3 p-4 bg-destructive/5 border border-destructive/20 rounded-xl">
+                    <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-destructive text-sm">Livraison non disponible</p>
+                      <p className="text-sm text-muted-foreground mt-0.5">La livraison n'est pas encore configurée pour cette wilaya. Contactez-nous au 0550 123 456.</p>
+                    </div>
                   </div>
                 ) : wilayaRate ? (
                   <div className="space-y-3">

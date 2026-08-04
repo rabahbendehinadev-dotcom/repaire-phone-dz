@@ -9,21 +9,48 @@ const router: IRouter = Router();
 // PUBLIC — used by the storefront checkout
 // ══════════════════════════════════════════════════════════════
 
-/** GET /api/shipping/rates/:wilayaCode — rate for one wilaya */
+/**
+ * GET /api/shipping/wilayas
+ * Returns all active wilayas with their delivery options and prices.
+ * Used by the checkout to know which wilayas are available.
+ */
+router.get("/shipping/wilayas", async (_req, res): Promise<void> => {
+  const rates = await db.select().from(shippingRatesTable)
+    .where(eq(shippingRatesTable.isActive, true))
+    .orderBy(asc(shippingRatesTable.wilayaCode));
+  res.json({ wilayas: rates });
+});
+
+/**
+ * GET /api/shipping/wilayas/:code
+ * Returns the full rate details for one wilaya (active or not).
+ */
+router.get("/shipping/wilayas/:code", async (req, res): Promise<void> => {
+  const code = (req.params.code as string).padStart(2, "0");
+  const [rate] = await db.select().from(shippingRatesTable).where(eq(shippingRatesTable.wilayaCode, code));
+  if (!rate) { res.status(404).json({ error: "Wilaya non trouvée" }); return; }
+  res.json(rate);
+});
+
+/** GET /api/shipping/rates/:wilayaCode — rate for one wilaya (kept for compat) */
 router.get("/shipping/rates/:wilayaCode", async (req, res): Promise<void> => {
   const code = (req.params.wilayaCode as string).padStart(2, "0");
   const [rate] = await db.select().from(shippingRatesTable).where(eq(shippingRatesTable.wilayaCode, code));
   if (!rate || !rate.isActive) {
-    // Return a neutral default so checkout always renders
-    res.json({ wilayaCode: code, wilayaName: code, isActive: false, homeDeliveryEnabled: true, stopDeskEnabled: false, homeDeliveryPrice: 500, stopDeskPrice: 0, minDeliveryDays: 2, maxDeliveryDays: 5 });
+    res.json({ wilayaCode: code, wilayaName: code, isActive: false, homeDeliveryEnabled: false, stopDeskEnabled: false, homeDeliveryPrice: 500, stopDeskPrice: 0, minDeliveryDays: 2, maxDeliveryDays: 5 });
     return;
   }
   res.json(rate);
 });
 
-/** GET /api/shipping/offices?wilaya=16 — active stop-desk offices */
+/**
+ * GET /api/shipping/offices?wilayaCode=16  (also accepts ?wilaya=16 for backwards compat)
+ * Returns active stop-desk offices for a wilaya.
+ */
 router.get("/shipping/offices", async (req, res): Promise<void> => {
-  const wilaya = (req.query.wilaya as string | undefined)?.padStart(2, "0");
+  const q = req.query as Record<string, string | undefined>;
+  const raw = q.wilayaCode ?? q.wilaya;
+  const wilaya = raw?.padStart(2, "0");
   const conditions = [eq(shippingOfficesTable.isActive, true)];
   if (wilaya) conditions.push(eq(shippingOfficesTable.wilayaCode, wilaya));
   const offices = await db.select().from(shippingOfficesTable).where(and(...conditions)).orderBy(asc(shippingOfficesTable.name));
