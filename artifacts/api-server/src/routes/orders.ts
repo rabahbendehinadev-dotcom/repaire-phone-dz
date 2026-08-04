@@ -118,7 +118,7 @@ router.post("/orders/guest", async (req, res): Promise<void> => {
     }).returning(baseOrderCols);
     res.status(201).json(formatOrder(order));
   } catch (err: any) {
-    console.error("[guest order] DB error:", err?.message ?? err);
+    console.error("[guest order] DB error:", err?.code, err?.detail ?? err?.message ?? err);
     res.status(500).json({ error: "Erreur lors de la création de la commande. Veuillez réessayer." });
   }
 });
