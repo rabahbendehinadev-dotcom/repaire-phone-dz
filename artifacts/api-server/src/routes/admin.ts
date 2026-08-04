@@ -30,14 +30,8 @@ const baseOrderCols = {
   notes: ordersTable.notes,
   createdAt: ordersTable.createdAt,
   updatedAt: ordersTable.updatedAt,
-  // Shipping metadata (migration 0003)
-  deliveryType: ordersTable.deliveryType,
-  shippingWilayaCode: ordersTable.shippingWilayaCode,
-  shippingWilayaName: ordersTable.shippingWilayaName,
-  shippingOfficeId: ordersTable.shippingOfficeId,
-  shippingOfficeName: ordersTable.shippingOfficeName,
-  estimatedDeliveryMinDays: ordersTable.estimatedDeliveryMinDays,
-  estimatedDeliveryMaxDays: ordersTable.estimatedDeliveryMaxDays,
+  // NOTE: shipping metadata columns (migration 0003) excluded until ALTER TABLE
+  // runs on production. Same guard pattern as for NOEST columns (migration 0001).
 } as const;
 
 function formatOrder(o: any) {

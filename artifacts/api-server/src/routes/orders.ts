@@ -31,14 +31,11 @@ const baseOrderCols = {
   notes: ordersTable.notes,
   createdAt: ordersTable.createdAt,
   updatedAt: ordersTable.updatedAt,
-  // Shipping metadata (migration 0003)
-  deliveryType: ordersTable.deliveryType,
-  shippingWilayaCode: ordersTable.shippingWilayaCode,
-  shippingWilayaName: ordersTable.shippingWilayaName,
-  shippingOfficeId: ordersTable.shippingOfficeId,
-  shippingOfficeName: ordersTable.shippingOfficeName,
-  estimatedDeliveryMinDays: ordersTable.estimatedDeliveryMinDays,
-  estimatedDeliveryMaxDays: ordersTable.estimatedDeliveryMaxDays,
+  // NOTE: shipping metadata columns (migration 0003) excluded until that migration
+  // runs on production. Re-add deliveryType, shippingWilayaCode, shippingWilayaName,
+  // shippingOfficeId, shippingOfficeName, estimatedDeliveryMinDays, estimatedDeliveryMaxDays
+  // once ALTER TABLE orders ADD COLUMN IF NOT EXISTS ... has been confirmed on prod.
+  // The INSERT already spreads shippingMeta safely (spread of {} = no-op).
 } as const;
 
 function formatOrder(o: any) {
