@@ -63,7 +63,6 @@ const navGroups = [
   {
     title: 'Livraison',
     items: [
-      { label: 'Livraisons NOEST', href: '/admin/noest', icon: Truck },
     ]
   },
   {
@@ -106,7 +105,6 @@ function AdminHeader() {
       settings: 'Paramètres',
       users: 'Utilisateurs',
       activity: 'Activité',
-      noest: 'Livraisons NOEST',
       'shipping-rates': 'Tarifs de livraison',
       'shipping-offices': 'Bureaux Stop Desk',
     };
