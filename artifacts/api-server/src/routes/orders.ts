@@ -7,10 +7,8 @@ import { requireAdminSession, requirePermission, logActivity, getIp } from "../l
 const router: IRouter = Router();
 
 /**
- * Safe column set that excludes NOEST delivery columns added in migration 0001.
- * Using `ordersTable` directly in db.select() generates an explicit column list;
- * if the production DB hasn't run the migration yet it throws "column does not exist".
- * Once the migration is applied on production this guard can be removed.
+ * Full column set — requires migrations 0003 + 0004 on the target DB.
+ * Use for dev DB and production after schema sync.
  */
 const baseOrderCols = {
   id: ordersTable.id,
@@ -31,7 +29,7 @@ const baseOrderCols = {
   notes: ordersTable.notes,
   createdAt: ordersTable.createdAt,
   updatedAt: ordersTable.updatedAt,
-  // Shipping metadata — migrations 0003 + 0004 applied; deliveryType values: 'home' | 'office'
+  // Shipping metadata — migrations 0003 + 0004; deliveryType: 'home' | 'office'
   deliveryType: ordersTable.deliveryType,
   shippingWilayaCode: ordersTable.shippingWilayaCode,
   shippingWilayaName: ordersTable.shippingWilayaName,
@@ -40,6 +38,36 @@ const baseOrderCols = {
   estimatedDeliveryMinDays: ordersTable.estimatedDeliveryMinDays,
   estimatedDeliveryMaxDays: ordersTable.estimatedDeliveryMaxDays,
 } as const;
+
+/**
+ * Fallback column set for production DBs that haven't received migrations 0003/0004 yet.
+ * PostgreSQL error code 42703 = "column does not exist" — triggers automatic fallback.
+ */
+const legacyOrderCols = {
+  id: ordersTable.id,
+  idempotencyKey: ordersTable.idempotencyKey,
+  userId: ordersTable.userId,
+  status: ordersTable.status,
+  paymentMethod: ordersTable.paymentMethod,
+  paymentStatus: ordersTable.paymentStatus,
+  paymentProofUrl: ordersTable.paymentProofUrl,
+  paymentNotes: ordersTable.paymentNotes,
+  subtotal: ordersTable.subtotal,
+  discount: ordersTable.discount,
+  couponCode: ordersTable.couponCode,
+  shipping: ordersTable.shipping,
+  total: ordersTable.total,
+  shippingAddress: ordersTable.shippingAddress,
+  items: ordersTable.items,
+  notes: ordersTable.notes,
+  createdAt: ordersTable.createdAt,
+  updatedAt: ordersTable.updatedAt,
+} as const;
+
+/** True when the DB error is "column does not exist" (missing migration). */
+function isMissingColumnError(err: any): boolean {
+  return err?.code === "42703";
+}
 
 function formatOrder(o: any) {
   return {
@@ -104,20 +132,27 @@ router.post("/orders/guest", async (req, res): Promise<void> => {
   if (shippingError) { res.status(400).json({ error: shippingError }); return; }
   const total = subtotal + shipping;
   const initialPaymentStatus = resolvedPaymentMethod === "cash_on_delivery" ? "pending" : "awaiting_confirmation";
+  const baseValues = {
+    idempotencyKey: idempotencyKey || null,
+    userId: null as null,
+    status: "pending" as const,
+    paymentMethod: resolvedPaymentMethod,
+    paymentStatus: initialPaymentStatus,
+    subtotal: String(subtotal), discount: "0",
+    couponCode: null as null, shipping: String(shipping), total: String(total),
+    shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
+  };
   try {
-    const [order] = await db.insert(ordersTable).values({
-      idempotencyKey: idempotencyKey || null,
-      userId: null, // guest — no account
-      status: "pending",
-      paymentMethod: resolvedPaymentMethod,
-      paymentStatus: initialPaymentStatus,
-      subtotal: String(subtotal), discount: "0",
-      couponCode: null, shipping: String(shipping), total: String(total),
-      shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
-      ...shippingMeta as any,
-    }).returning(baseOrderCols);
+    const [order] = await db.insert(ordersTable).values({ ...baseValues, ...shippingMeta as any })
+      .returning(baseOrderCols);
     res.status(201).json(formatOrder(order));
   } catch (err: any) {
+    if (isMissingColumnError(err)) {
+      // Production DB missing migrations 0003/0004 — insert without shipping metadata
+      const [order] = await db.insert(ordersTable).values(baseValues).returning(legacyOrderCols);
+      res.status(201).json(formatOrder(order));
+      return;
+    }
     console.error("[guest order] DB error:", err?.code, err?.detail ?? err?.message ?? err);
     res.status(500).json({ error: "Erreur lors de la création de la commande. Veuillez réessayer." });
   }
@@ -164,26 +199,45 @@ router.post("/orders", requireAuth, async (req, res): Promise<void> => {
   // Payment status: bank_transfer starts as "awaiting_confirmation", others as "pending"
   const initialPaymentStatus = resolvedPaymentMethod === "cash_on_delivery" ? "pending" : "awaiting_confirmation";
 
+  const authBaseValues = {
+    idempotencyKey: idempotencyKey || null,
+    userId,
+    status: "pending" as const,
+    paymentMethod: resolvedPaymentMethod,
+    paymentStatus: initialPaymentStatus,
+    subtotal: String(subtotal), discount: "0",
+    couponCode: (cart.couponCode as string) || null, shipping: String(shipping), total: String(total),
+    shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
+  };
+
   // Atomic idempotency: INSERT ... ON CONFLICT DO NOTHING.
   // If the insert is skipped (duplicate key), the returning array is empty — we then fetch
   // the already-existing order. This is race-safe: concurrent retries both resolve to the
   // same row rather than one crashing with a unique-constraint error.
+  const doAuthInsert = async (withMeta: boolean) => {
+    const values = withMeta ? { ...authBaseValues, ...shippingMeta as any } : authBaseValues;
+    const cols = withMeta ? baseOrderCols : legacyOrderCols;
+    return db.insert(ordersTable).values(values).onConflictDoNothing().returning(cols);
+  };
+
   try {
-    const [order] = await db.insert(ordersTable).values({
-      idempotencyKey: idempotencyKey || null,
-      userId, status: "pending",
-      paymentMethod: resolvedPaymentMethod,
-      paymentStatus: initialPaymentStatus,
-      subtotal: String(subtotal), discount: "0",
-      couponCode: (cart.couponCode as string) || null, shipping: String(shipping), total: String(total),
-      shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
-      ...shippingMeta as any,
-    }).onConflictDoNothing().returning(baseOrderCols);
+    let result = await doAuthInsert(true).catch(async (err: any) => {
+      if (isMissingColumnError(err)) return doAuthInsert(false);
+      throw err;
+    });
+    const [order] = result;
 
     if (!order) {
-      // Duplicate request — idempotencyKey already used for this user; return the existing order
-      const [existing] = await db.select(baseOrderCols).from(ordersTable)
-        .where(and(eq(ordersTable.userId, userId), eq(ordersTable.idempotencyKey, idempotencyKey)));
+      // Duplicate request — idempotencyKey already used; return the existing order
+      const selectCols = baseOrderCols;
+      let [existing] = await db.select(selectCols).from(ordersTable)
+        .where(and(eq(ordersTable.userId, userId), eq(ordersTable.idempotencyKey, idempotencyKey)))
+        .catch(async (err: any) => {
+          if (isMissingColumnError(err))
+            return db.select(legacyOrderCols).from(ordersTable)
+              .where(and(eq(ordersTable.userId, userId), eq(ordersTable.idempotencyKey, idempotencyKey)));
+          throw err;
+        }) as any[];
       if (!existing) { res.status(500).json({ error: "Erreur idempotence" }); return; }
       res.status(200).json(formatOrder(existing));
       return;
@@ -192,7 +246,7 @@ router.post("/orders", requireAuth, async (req, res): Promise<void> => {
     await db.delete(cartTable).where(eq(cartTable.userId, userId));
     res.status(201).json(formatOrder(order));
   } catch (err: any) {
-    console.error("[auth order] DB error:", err?.message ?? err);
+    console.error("[auth order] DB error:", err?.code, err?.detail ?? err?.message ?? err);
     res.status(500).json({ error: "Erreur lors de la création de la commande. Veuillez réessayer." });
   }
 });
