@@ -3,13 +3,13 @@ import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/
 /** Shipping rates per Algerian wilaya (58 wilayas). */
 export const shippingRatesTable = pgTable("shipping_rates", {
   id: serial("id").primaryKey(),
-  wilayaCode: text("wilaya_code").notNull().unique(),     // "01" – "58"
+  wilayaCode: text("wilaya_code").notNull().unique(),         // "01" – "58"
   wilayaName: text("wilaya_name").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   homeDeliveryEnabled: boolean("home_delivery_enabled").notNull().default(true),
-  stopDeskEnabled: boolean("stop_desk_enabled").notNull().default(true),
-  homeDeliveryPrice: integer("home_delivery_price").notNull().default(500), // DA
-  stopDeskPrice: integer("stop_desk_price").notNull().default(350),          // DA
+  officeDeliveryEnabled: boolean("office_delivery_enabled").notNull().default(true),
+  homeDeliveryPrice: integer("home_delivery_price").notNull().default(500),   // DA
+  officeDeliveryPrice: integer("office_delivery_price").notNull().default(350), // DA
   minDeliveryDays: integer("min_delivery_days").notNull().default(2),
   maxDeliveryDays: integer("max_delivery_days").notNull().default(3),
   carrier: text("carrier").default("manual"),  // 'manual' | 'noest' | other
@@ -19,7 +19,7 @@ export const shippingRatesTable = pgTable("shipping_rates", {
 
 export type ShippingRate = typeof shippingRatesTable.$inferSelect;
 
-/** Stop-desk offices per wilaya */
+/** Stop-desk offices per wilaya — kept for future use, not exposed in UI yet */
 export const shippingOfficesTable = pgTable("shipping_offices", {
   id: serial("id").primaryKey(),
   wilayaCode: text("wilaya_code").notNull(),

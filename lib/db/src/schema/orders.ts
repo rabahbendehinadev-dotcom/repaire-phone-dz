@@ -21,7 +21,7 @@ export const ordersTable = pgTable("orders", {
   items: jsonb("items").notNull(),
   notes: text("notes"),
   // Shipping metadata (saved at order time — never changes even if rates change later)
-  deliveryType: text("delivery_type"),                // 'domicile' | 'stop_desk'
+  deliveryType: text("delivery_type"),                // 'home' | 'office'
   shippingWilayaCode: text("shipping_wilaya_code"),   // '16'
   shippingWilayaName: text("shipping_wilaya_name"),   // 'Alger'
   shippingOfficeId: integer("shipping_office_id"),    // FK → shipping_offices.id

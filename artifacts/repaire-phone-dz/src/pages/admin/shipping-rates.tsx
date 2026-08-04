@@ -19,14 +19,14 @@ import { ALGERIA_WILAYAS } from '@/lib/algeria-wilayas';
 
 interface ShippingRate {
   id: number; wilayaCode: string; wilayaName: string;
-  isActive: boolean; homeDeliveryEnabled: boolean; stopDeskEnabled: boolean;
-  homeDeliveryPrice: number; stopDeskPrice: number;
+  isActive: boolean; homeDeliveryEnabled: boolean; officeDeliveryEnabled: boolean;
+  homeDeliveryPrice: number; officeDeliveryPrice: number;
   minDeliveryDays: number; maxDeliveryDays: number;
 }
 
 type EditState = Partial<ShippingRate>;
 type Filter = 'all' | 'active' | 'inactive' | 'domicile' | 'bureau' | 'noprice';
-type BulkAction = '' | 'activate' | 'deactivate' | 'enable_home' | 'enable_desk' | 'set_home_price' | 'set_desk_price' | 'set_min_days' | 'set_max_days' | 'percent_change';
+type BulkAction = '' | 'activate' | 'deactivate' | 'enable_home' | 'enable_office' | 'set_home_price' | 'set_office_price' | 'set_min_days' | 'set_max_days' | 'percent_change';
 
 const apiFetch = async (method: string, path: string, body?: any) => {
   const res = await fetch(`/api${path}`, {
@@ -44,14 +44,14 @@ const BULK_ACTION_LABELS: Record<BulkAction, string> = {
   activate: 'Activer les wilayas sélectionnées',
   deactivate: 'Désactiver les wilayas sélectionnées',
   enable_home: 'Activer livraison domicile',
-  enable_desk: 'Activer livraison bureau',
+  enable_office: 'Activer livraison bureau',
   set_home_price: 'Définir prix domicile (DA)',
-  set_desk_price: 'Définir prix bureau (DA)',
+  set_office_price: 'Définir prix bureau (DA)',
   set_min_days: 'Définir délai min (jours)',
   set_max_days: 'Définir délai max (jours)',
   percent_change: 'Appliquer variation % (ex: +10 ou -5)',
 };
-const BULK_NEEDS_VALUE: BulkAction[] = ['set_home_price', 'set_desk_price', 'set_min_days', 'set_max_days', 'percent_change'];
+const BULK_NEEDS_VALUE: BulkAction[] = ['set_home_price', 'set_office_price', 'set_min_days', 'set_max_days', 'percent_change'];
 
 const FILTER_LABELS: Record<Filter, string> = {
   all: 'Toutes',
@@ -78,26 +78,26 @@ function parseCsv(text: string): { rows: any[]; errors: string[] } {
     const w = ALGERIA_WILAYAS.find(w => w.code === code);
     if (!w) { errors.push(`Ligne ${i + 1}: code ${code} invalide`); continue; }
     const homePrice = parseInt(row.home_price || row.homedeliverryprice || '', 10);
-    const deskPrice = parseInt(row.desk_price || row.stopdeskprice || row.bureau_price || '', 10);
-    if (isNaN(homePrice) && isNaN(deskPrice)) { errors.push(`Ligne ${i + 1}: prix invalide`); continue; }
+    const officePrice = parseInt(row.office_price || row.desk_price || row.stopdeskprice || row.bureau_price || '', 10);
+    if (isNaN(homePrice) && isNaN(officePrice)) { errors.push(`Ligne ${i + 1}: prix invalide`); continue; }
     rows.push({
       wilayaCode: code, wilayaName: w.name,
       homeDeliveryPrice: isNaN(homePrice) ? 0 : homePrice,
-      stopDeskPrice: isNaN(deskPrice) ? 0 : deskPrice,
+      officeDeliveryPrice: isNaN(officePrice) ? 0 : officePrice,
       minDeliveryDays: parseInt(row.min_days || '2', 10) || 2,
       maxDeliveryDays: parseInt(row.max_days || '3', 10) || 3,
       isActive: row.active !== 'false' && row.is_active !== 'false',
       homeDeliveryEnabled: row.home_enabled !== 'false',
-      stopDeskEnabled: row.desk_enabled !== 'false',
+      officeDeliveryEnabled: row.office_enabled !== 'false' && row.desk_enabled !== 'false',
     });
   }
   return { rows, errors };
 }
 
 function exportToCsv(rates: ShippingRate[]) {
-  const header = 'code,wilaya,active,home_enabled,home_price,desk_enabled,desk_price,min_days,max_days\n';
+  const header = 'code,wilaya,active,home_enabled,home_price,office_enabled,office_price,min_days,max_days\n';
   const body = rates.map(r =>
-    `${r.wilayaCode},${r.wilayaName},${r.isActive},${r.homeDeliveryEnabled},${r.homeDeliveryPrice},${r.stopDeskEnabled},${r.stopDeskPrice},${r.minDeliveryDays},${r.maxDeliveryDays}`
+    `${r.wilayaCode},${r.wilayaName},${r.isActive},${r.homeDeliveryEnabled},${r.homeDeliveryPrice},${r.officeDeliveryEnabled},${r.officeDeliveryPrice},${r.minDeliveryDays},${r.maxDeliveryDays}`
   ).join('\n');
   const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -136,7 +136,7 @@ export default function AdminShippingRates() {
     total: rates.length,
     active: rates.filter(r => r.isActive).length,
     inactive: rates.filter(r => !r.isActive).length,
-    noprice: rates.filter(r => !r.homeDeliveryPrice && !r.stopDeskPrice).length,
+    noprice: rates.filter(r => !r.homeDeliveryPrice && !r.officeDeliveryPrice).length,
   }), [rates]);
 
   const filteredRates = useMemo(() => rates.filter(r => {
@@ -147,8 +147,8 @@ export default function AdminShippingRates() {
     if (filter === 'active') return r.isActive;
     if (filter === 'inactive') return !r.isActive;
     if (filter === 'domicile') return r.homeDeliveryEnabled;
-    if (filter === 'bureau') return r.stopDeskEnabled;
-    if (filter === 'noprice') return !r.homeDeliveryPrice && !r.stopDeskPrice;
+    if (filter === 'bureau') return r.officeDeliveryEnabled;
+    if (filter === 'noprice') return !r.homeDeliveryPrice && !r.officeDeliveryPrice;
     return true;
   }), [rates, search, filter]);
 
@@ -428,14 +428,14 @@ export default function AdminShippingRates() {
                       </td>
                       {/* Bureau */}
                       <td className="p-2 text-center">
-                        <Switch checked={getVal(rate.wilayaCode, 'stopDeskEnabled', rate.stopDeskEnabled)}
-                          onCheckedChange={v => setVal(rate.wilayaCode, 'stopDeskEnabled', v)} />
+                        <Switch checked={getVal(rate.wilayaCode, 'officeDeliveryEnabled', rate.officeDeliveryEnabled)}
+                          onCheckedChange={v => setVal(rate.wilayaCode, 'officeDeliveryEnabled', v)} />
                       </td>
                       <td className="p-2">
                         <div className="flex items-center gap-1 justify-center">
                           <Input type="number" min={0}
-                            value={getVal(rate.wilayaCode, 'stopDeskPrice', rate.stopDeskPrice)}
-                            onChange={e => setVal(rate.wilayaCode, 'stopDeskPrice', parseInt(e.target.value) || 0)}
+                            value={getVal(rate.wilayaCode, 'officeDeliveryPrice', rate.officeDeliveryPrice)}
+                            onChange={e => setVal(rate.wilayaCode, 'officeDeliveryPrice', parseInt(e.target.value) || 0)}
                             className="h-7 w-20 text-xs text-center" />
                           <span className="text-xs text-muted-foreground">DA</span>
                         </div>
@@ -543,15 +543,15 @@ export default function AdminShippingRates() {
                         </div>
                         <div className="flex items-center gap-1">
                           <Input type="number" min={0}
-                            value={getVal(rate.wilayaCode, 'stopDeskPrice', rate.stopDeskPrice)}
-                            onChange={e => setVal(rate.wilayaCode, 'stopDeskPrice', parseInt(e.target.value) || 0)}
+                            value={getVal(rate.wilayaCode, 'officeDeliveryPrice', rate.officeDeliveryPrice)}
+                            onChange={e => setVal(rate.wilayaCode, 'officeDeliveryPrice', parseInt(e.target.value) || 0)}
                             className="h-9 text-sm" />
                           <span className="text-xs text-muted-foreground shrink-0">DA</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Switch className="scale-75" checked={getVal(rate.wilayaCode, 'stopDeskEnabled', rate.stopDeskEnabled)}
-                            onCheckedChange={v => setVal(rate.wilayaCode, 'stopDeskEnabled', v)} />
-                          <Label className="text-xs">{getVal(rate.wilayaCode, 'stopDeskEnabled', rate.stopDeskEnabled) ? 'Activé' : 'Désactivé'}</Label>
+                          <Switch className="scale-75" checked={getVal(rate.wilayaCode, 'officeDeliveryEnabled', rate.officeDeliveryEnabled)}
+                            onCheckedChange={v => setVal(rate.wilayaCode, 'officeDeliveryEnabled', v)} />
+                          <Label className="text-xs">{getVal(rate.wilayaCode, 'officeDeliveryEnabled', rate.officeDeliveryEnabled) ? 'Activé' : 'Désactivé'}</Label>
                         </div>
                       </div>
                     </div>
@@ -615,7 +615,7 @@ export default function AdminShippingRates() {
                     <td className="p-2 font-mono">{r.wilayaCode}</td>
                     <td className="p-2">{r.wilayaName}</td>
                     <td className="p-2 text-right">{r.homeDeliveryPrice}</td>
-                    <td className="p-2 text-right">{r.stopDeskPrice}</td>
+                    <td className="p-2 text-right">{r.officeDeliveryPrice}</td>
                     <td className="p-2 text-center">{r.minDeliveryDays}</td>
                     <td className="p-2 text-center">{r.maxDeliveryDays}</td>
                   </tr>

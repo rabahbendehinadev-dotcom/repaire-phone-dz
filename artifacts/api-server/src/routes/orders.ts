@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
-import { db, ordersTable, cartTable, usersTable, shippingRatesTable, shippingOfficesTable } from "@workspace/db";
+import { db, ordersTable, cartTable, usersTable, shippingRatesTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { requireAdminSession, requirePermission, logActivity, getIp } from "../lib/admin-auth";
 
@@ -31,11 +31,14 @@ const baseOrderCols = {
   notes: ordersTable.notes,
   createdAt: ordersTable.createdAt,
   updatedAt: ordersTable.updatedAt,
-  // NOTE: shipping metadata columns (migration 0003) excluded until that migration
-  // runs on production. Re-add deliveryType, shippingWilayaCode, shippingWilayaName,
-  // shippingOfficeId, shippingOfficeName, estimatedDeliveryMinDays, estimatedDeliveryMaxDays
-  // once ALTER TABLE orders ADD COLUMN IF NOT EXISTS ... has been confirmed on prod.
-  // The INSERT already spreads shippingMeta safely (spread of {} = no-op).
+  // Shipping metadata — migrations 0003 + 0004 applied; deliveryType values: 'home' | 'office'
+  deliveryType: ordersTable.deliveryType,
+  shippingWilayaCode: ordersTable.shippingWilayaCode,
+  shippingWilayaName: ordersTable.shippingWilayaName,
+  shippingOfficeId: ordersTable.shippingOfficeId,
+  shippingOfficeName: ordersTable.shippingOfficeName,
+  estimatedDeliveryMinDays: ordersTable.estimatedDeliveryMinDays,
+  estimatedDeliveryMaxDays: ordersTable.estimatedDeliveryMaxDays,
 } as const;
 
 function formatOrder(o: any) {
@@ -61,43 +64,48 @@ function formatOrder(o: any) {
   };
 }
 
-/** Compute shipping cost server-side from shipping_rates. Never trusts frontend price. */
+/**
+ * Compute shipping cost server-side from shipping_rates. Never trusts frontend price.
+ * Returns { error } when the wilaya or delivery method is inactive/unavailable.
+ * Callers should convert error to HTTP 400.
+ */
 async function computeShipping(
-  wilayaCode: string | undefined, deliveryType: string | undefined, officeId: number | undefined,
-): Promise<{ shipping: number; meta: Record<string, unknown> }> {
-  const fallback = { shipping: 500, meta: {} };
-  if (!wilayaCode || !deliveryType) return fallback;
+  wilayaCode: string | undefined, deliveryType: string | undefined,
+): Promise<{ shipping: number; meta: Record<string, unknown>; error?: string }> {
+  if (!wilayaCode || !deliveryType) {
+    return { shipping: 500, meta: {} };
+  }
   const code = String(wilayaCode).padStart(2, "0");
-  try {
-    const [rate] = await db.select().from(shippingRatesTable).where(eq(shippingRatesTable.wilayaCode, code));
-    if (!rate || !rate.isActive) return fallback;
-    let price: number;
-    if (deliveryType === "domicile" && rate.homeDeliveryEnabled) price = rate.homeDeliveryPrice;
-    else if (deliveryType === "stop_desk" && rate.stopDeskEnabled) price = rate.stopDeskPrice;
-    else return fallback;
-    const meta: Record<string, unknown> = {
-      deliveryType, shippingWilayaCode: code, shippingWilayaName: rate.wilayaName,
-      estimatedDeliveryMinDays: rate.minDeliveryDays, estimatedDeliveryMaxDays: rate.maxDeliveryDays,
-    };
-    if (officeId && deliveryType === "stop_desk") {
-      const [off] = await db.select({ id: shippingOfficesTable.id, name: shippingOfficesTable.name })
-        .from(shippingOfficesTable).where(eq(shippingOfficesTable.id, Number(officeId)));
-      if (off) { meta.shippingOfficeId = off.id; meta.shippingOfficeName = off.name; }
-    }
-    return { shipping: price, meta };
-  } catch { return fallback; }
+  const [rate] = await db.select().from(shippingRatesTable).where(eq(shippingRatesTable.wilayaCode, code));
+  if (!rate || !rate.isActive) {
+    return { shipping: 0, meta: {}, error: "La livraison n'est pas disponible pour cette wilaya." };
+  }
+  let price: number;
+  if (deliveryType === "home" && rate.homeDeliveryEnabled) {
+    price = rate.homeDeliveryPrice;
+  } else if (deliveryType === "office" && rate.officeDeliveryEnabled) {
+    price = rate.officeDeliveryPrice;
+  } else {
+    return { shipping: 0, meta: {}, error: "Le mode de livraison sélectionné n'est pas disponible pour cette wilaya." };
+  }
+  const meta: Record<string, unknown> = {
+    deliveryType, shippingWilayaCode: code, shippingWilayaName: rate.wilayaName,
+    estimatedDeliveryMinDays: rate.minDeliveryDays, estimatedDeliveryMaxDays: rate.maxDeliveryDays,
+  };
+  return { shipping: price, meta };
 }
 
 // ── Guest order (no auth required) ──────────────────────────────────────────
 router.post("/orders/guest", async (req, res): Promise<void> => {
-  const { items, shippingAddress, notes, paymentMethod, idempotencyKey, deliveryType, wilayaCode, officeId } = req.body;
+  const { items, shippingAddress, notes, paymentMethod, idempotencyKey, deliveryType, wilayaCode } = req.body;
   if (!shippingAddress || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: "items et shippingAddress requis" }); return;
   }
   const validPaymentMethods = ["cash_on_delivery", "bank_transfer", "cib_edahabia"];
   const resolvedPaymentMethod = validPaymentMethods.includes(paymentMethod) ? paymentMethod : "cash_on_delivery";
   const subtotal = items.reduce((s: number, i: any) => s + (Number(i.price) * Number(i.quantity)), 0);
-  const { shipping, meta: shippingMeta } = await computeShipping(wilayaCode, deliveryType, officeId);
+  const { shipping, meta: shippingMeta, error: shippingError } = await computeShipping(wilayaCode, deliveryType);
+  if (shippingError) { res.status(400).json({ error: shippingError }); return; }
   const total = subtotal + shipping;
   const initialPaymentStatus = resolvedPaymentMethod === "cash_on_delivery" ? "pending" : "awaiting_confirmation";
   try {
@@ -141,7 +149,7 @@ router.get("/orders", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/orders", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
-  const { shippingAddress, notes, paymentMethod, idempotencyKey, deliveryType, wilayaCode, officeId } = req.body;
+  const { shippingAddress, notes, paymentMethod, idempotencyKey, deliveryType, wilayaCode } = req.body;
   if (!shippingAddress) { res.status(400).json({ error: "shippingAddress requis" }); return; }
 
   const validPaymentMethods = ["cash_on_delivery", "bank_transfer", "cib_edahabia"];
@@ -153,7 +161,8 @@ router.post("/orders", requireAuth, async (req, res): Promise<void> => {
   }
   const items = cart.items as any[];
   const subtotal = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
-  const { shipping, meta: shippingMeta } = await computeShipping(wilayaCode, deliveryType, officeId);
+  const { shipping, meta: shippingMeta, error: shippingError } = await computeShipping(wilayaCode, deliveryType);
+  if (shippingError) { res.status(400).json({ error: shippingError }); return; }
   const total = subtotal + shipping;
 
   // Payment status: bank_transfer starts as "awaiting_confirmation", others as "pending"

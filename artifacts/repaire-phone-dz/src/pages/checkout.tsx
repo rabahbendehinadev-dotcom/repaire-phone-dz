@@ -89,9 +89,7 @@ export default function Checkout() {
   // Shipping rate state — loaded dynamically when wilaya is selected
   const [wilayaRate, setWilayaRate] = useState<any>(null);
   const [isRateLoading, setIsRateLoading] = useState(false);
-  const [selectedDeliveryType, setSelectedDeliveryType] = useState<'domicile' | 'stop_desk' | null>(null);
-  const [availableOffices, setAvailableOffices] = useState<any[]>([]);
-  const [selectedOffice, setSelectedOffice] = useState<any>(null);
+  const [selectedDeliveryType, setSelectedDeliveryType] = useState<'home' | 'office' | null>(null);
 
   const form = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
@@ -101,7 +99,7 @@ export default function Checkout() {
   // Fetch active wilaya codes once on mount to disable inactive ones in the dropdown
   const [activeWilayaCodes, setActiveWilayaCodes] = useState<Set<string> | null>(null);
   useEffect(() => {
-    fetch('/api/shipping/wilayas')
+    fetch('/api/shipping-rates/active')
       .then(r => r.json())
       .then(d => setActiveWilayaCodes(new Set((d.wilayas as any[]).map(w => w.wilayaCode))))
       .catch(() => setActiveWilayaCodes(null)); // on error, treat all as available
@@ -110,39 +108,25 @@ export default function Checkout() {
   // Watch wilaya to fetch shipping rate when it changes
   const watchedWilaya = form.watch('wilaya');
   useEffect(() => {
-    if (!watchedWilaya) { setWilayaRate(null); setSelectedDeliveryType(null); setSelectedOffice(null); return; }
+    if (!watchedWilaya) { setWilayaRate(null); setSelectedDeliveryType(null); return; }
     const code = parseWilayaCode(watchedWilaya);
     if (!code) return;
-    setIsRateLoading(true); setWilayaRate(null); setSelectedDeliveryType(null); setSelectedOffice(null);
-    fetch(`/api/shipping/wilayas/${code}`)
+    setIsRateLoading(true); setWilayaRate(null); setSelectedDeliveryType(null);
+    fetch(`/api/shipping-rates/${code}`)
       .then(r => r.ok ? r.json() : Promise.reject(r))
       .then(rate => {
-        if (!rate.isActive) return; // leave wilayaRate null → shows "unavailable" message
         setWilayaRate(rate);
         // Auto-select when only one delivery method is enabled
-        if (rate.homeDeliveryEnabled && !rate.stopDeskEnabled) setSelectedDeliveryType('domicile');
-        else if (!rate.homeDeliveryEnabled && rate.stopDeskEnabled) setSelectedDeliveryType('stop_desk');
+        if (rate.homeDeliveryEnabled && !rate.officeDeliveryEnabled) setSelectedDeliveryType('home');
+        else if (!rate.homeDeliveryEnabled && rate.officeDeliveryEnabled) setSelectedDeliveryType('office');
       })
       .catch(() => {}) // rate stays null → "unavailable" message shown
       .finally(() => setIsRateLoading(false));
   }, [watchedWilaya]);
 
-  useEffect(() => {
-    if (selectedDeliveryType !== 'stop_desk' || !watchedWilaya) {
-      setAvailableOffices([]); setSelectedOffice(null); return;
-    }
-    const code = parseWilayaCode(watchedWilaya);
-    if (!code) return;
-    setSelectedOffice(null);
-    fetch(`/api/shipping/offices?wilayaCode=${code}`)
-      .then(r => r.json())
-      .then(d => setAvailableOffices(d.offices || []))
-      .catch(() => setAvailableOffices([]));
-  }, [selectedDeliveryType, watchedWilaya]);
-
   const computedShipping = useMemo(() => {
     if (!wilayaRate || !selectedDeliveryType) return Number(cart?.shipping ?? 500);
-    return selectedDeliveryType === 'domicile' ? wilayaRate.homeDeliveryPrice : wilayaRate.stopDeskPrice;
+    return selectedDeliveryType === 'home' ? wilayaRate.homeDeliveryPrice : wilayaRate.officeDeliveryPrice;
   }, [wilayaRate, selectedDeliveryType, cart]);
 
   const displayTotal = useMemo(() => {
@@ -165,18 +149,13 @@ export default function Checkout() {
     }
     // Block if rate loaded but no delivery method selected
     if (wilayaRate && !selectedDeliveryType) {
-      toast.error('Veuillez choisir un mode de livraison (domicile ou stop desk)'); return;
-    }
-    // Validate stop desk office selection
-    if (selectedDeliveryType === 'stop_desk' && availableOffices.length > 0 && !selectedOffice) {
-      toast.error('Veuillez sélectionner un bureau de livraison Stop Desk'); return;
+      toast.error('Veuillez choisir un mode de livraison (domicile ou bureau)'); return;
     }
     setIsSubmitting(true);
     const wilayaCode = parseWilayaCode(data.wilaya) ?? undefined;
     const deliveryPayload = {
-      deliveryType: selectedDeliveryType ?? 'domicile',
+      deliveryType: selectedDeliveryType ?? 'home',
       wilayaCode,
-      officeId: selectedOffice?.id,
     };
     try {
       const shippingAddress = {
@@ -510,11 +489,11 @@ export default function Checkout() {
                 ) : wilayaRate ? (
                   <div className="space-y-3">
                     {wilayaRate.homeDeliveryEnabled && (
-                      <button type="button" onClick={() => setSelectedDeliveryType('domicile')}
+                      <button type="button" onClick={() => setSelectedDeliveryType('home')}
                         className={cn("w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all",
-                          selectedDeliveryType === 'domicile' ? "border-primary bg-primary/5" : "border-border bg-muted/20 hover:border-muted-foreground/30")}>
+                          selectedDeliveryType === 'home' ? "border-primary bg-primary/5" : "border-border bg-muted/20 hover:border-muted-foreground/30")}>
                         <div className={cn("h-10 w-10 rounded-full flex items-center justify-center shrink-0",
-                          selectedDeliveryType === 'domicile' ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+                          selectedDeliveryType === 'home' ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
                           <Home className="h-5 w-5" />
                         </div>
                         <div className="flex-1">
@@ -523,61 +502,42 @@ export default function Checkout() {
                         </div>
                         <div className="font-bold text-primary text-right">{wilayaRate.homeDeliveryPrice.toLocaleString('fr-DZ')} DA</div>
                         <div className={cn("h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center",
-                          selectedDeliveryType === 'domicile' ? "border-primary" : "border-muted-foreground/30")}>
-                          {selectedDeliveryType === 'domicile' && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
+                          selectedDeliveryType === 'home' ? "border-primary" : "border-muted-foreground/30")}>
+                          {selectedDeliveryType === 'home' && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
                         </div>
                       </button>
                     )}
 
-                    {wilayaRate.stopDeskEnabled && (
-                      <button type="button" onClick={() => setSelectedDeliveryType('stop_desk')}
+                    {wilayaRate.officeDeliveryEnabled && (
+                      <button type="button" onClick={() => setSelectedDeliveryType('office')}
                         className={cn("w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all",
-                          selectedDeliveryType === 'stop_desk' ? "border-primary bg-primary/5" : "border-border bg-muted/20 hover:border-muted-foreground/30")}>
+                          selectedDeliveryType === 'office' ? "border-primary bg-primary/5" : "border-border bg-muted/20 hover:border-muted-foreground/30")}>
                         <div className={cn("h-10 w-10 rounded-full flex items-center justify-center shrink-0",
-                          selectedDeliveryType === 'stop_desk' ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+                          selectedDeliveryType === 'office' ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
                           <Building2 className="h-5 w-5" />
                         </div>
                         <div className="flex-1">
-                          <div className="font-bold">Stop Desk — retrait en agence</div>
+                          <div className="font-bold">Livraison au bureau</div>
                           <div className="text-sm text-muted-foreground">{wilayaRate.minDeliveryDays}–{wilayaRate.maxDeliveryDays} jours ouvrables</div>
                         </div>
-                        <div className="font-bold text-primary text-right">{wilayaRate.stopDeskPrice.toLocaleString('fr-DZ')} DA</div>
+                        <div className="font-bold text-primary text-right">{wilayaRate.officeDeliveryPrice.toLocaleString('fr-DZ')} DA</div>
                         <div className={cn("h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center",
-                          selectedDeliveryType === 'stop_desk' ? "border-primary" : "border-muted-foreground/30")}>
-                          {selectedDeliveryType === 'stop_desk' && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
+                          selectedDeliveryType === 'office' ? "border-primary" : "border-muted-foreground/30")}>
+                          {selectedDeliveryType === 'office' && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
                         </div>
                       </button>
                     )}
 
-                    {!wilayaRate.homeDeliveryEnabled && !wilayaRate.stopDeskEnabled && (
+                    {!wilayaRate.homeDeliveryEnabled && !wilayaRate.officeDeliveryEnabled && (
                       <p className="text-sm text-destructive p-3 bg-destructive/5 rounded-lg">
                         Livraison non disponible pour cette wilaya. Contactez-nous pour plus d'informations.
                       </p>
                     )}
 
-                    {selectedDeliveryType === 'stop_desk' && (
-                      <div className="pt-1 space-y-2">
-                        <Label className="text-sm font-semibold">Bureau de livraison</Label>
-                        {availableOffices.length === 0 ? (
-                          <div className="text-sm text-muted-foreground p-3 bg-muted/20 rounded-lg space-y-1">
-                            <p className="font-medium text-foreground">Le bureau sera confirmé par téléphone</p>
-                            <p>Notre équipe vous contactera pour vous indiquer le bureau de retrait le plus proche.</p>
-                          </div>
-                        ) : (
-                          <Select value={selectedOffice?.id?.toString() ?? ''}
-                            onValueChange={val => setSelectedOffice(availableOffices.find(o => o.id.toString() === val) ?? null)}>
-                            <SelectTrigger className="h-10">
-                              <SelectValue placeholder="Choisir un bureau…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableOffices.map(o => (
-                                <SelectItem key={o.id} value={o.id.toString()}>
-                                  {o.name}{o.commune ? ` — ${o.commune}` : ''}{o.address ? ` (${o.address})` : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
+                    {selectedDeliveryType === 'office' && (
+                      <div className="pt-1 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900 rounded-lg space-y-1">
+                        <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Le bureau sera confirmé par téléphone</p>
+                        <p className="text-xs text-blue-700 dark:text-blue-400">Notre équipe vous contactera pour vous indiquer le bureau de retrait le plus proche de chez vous.</p>
                       </div>
                     )}
                   </div>

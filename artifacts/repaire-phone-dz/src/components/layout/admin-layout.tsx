@@ -64,7 +64,6 @@ const navGroups = [
     title: 'Livraison',
     items: [
       { label: 'Tarifs de livraison', href: '/admin/shipping-rates', icon: MapPin },
-      { label: 'Bureaux Stop Desk', href: '/admin/shipping-offices', icon: Building2 },
       { label: 'Livraisons NOEST', href: '/admin/noest', icon: Truck },
     ]
   },
