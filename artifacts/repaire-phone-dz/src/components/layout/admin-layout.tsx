@@ -3,7 +3,7 @@ import { useAdminAuth } from '@/hooks/use-admin-auth';
 import { useLocation, Link } from 'wouter';
 import { 
   LayoutDashboard, Box, Tags, ShoppingCart, Users, Ticket, Truck,
-  Image as ImageIcon, Settings, Activity, LogOut, ChevronDown, UserCircle, Bell, Search, Sun, Moon, Laptop, Shield
+  Image as ImageIcon, Settings, Activity, LogOut, ChevronDown, UserCircle, Bell, Search, Sun, Moon, Laptop, Shield, MapPin
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
@@ -56,9 +56,15 @@ const navGroups = [
     title: 'Commerce',
     items: [
       { label: 'Commandes', href: '/admin/orders', icon: ShoppingCart },
-      { label: 'Livraisons NOEST', href: '/admin/noest', icon: Truck },
       { label: 'Clients', href: '/admin/customers', icon: Users },
       { label: 'Coupons', href: '/admin/coupons', icon: Ticket },
+    ]
+  },
+  {
+    title: 'Livraison',
+    items: [
+      { label: 'Tarifs de livraison', href: '/admin/shipping-rates', icon: MapPin },
+      { label: 'Livraisons NOEST', href: '/admin/noest', icon: Truck },
     ]
   },
   {
@@ -102,6 +108,7 @@ function AdminHeader() {
       users: 'Utilisateurs',
       activity: 'Activité',
       noest: 'Livraisons NOEST',
+      'shipping-rates': 'Tarifs de livraison',
     };
     return {
       href,

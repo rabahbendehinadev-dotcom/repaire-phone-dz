@@ -18,6 +18,7 @@ import adminAuthRouter from "./admin-auth";
 import adminUsersRouter from "./admin-users";
 import adminActivityRouter from "./admin-activity";
 import noestRouter from "./noest";
+import shippingRouter from "./shipping";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(adminAuthRouter);
 router.use(adminUsersRouter);
 router.use(adminActivityRouter);
 router.use(noestRouter);
+router.use(shippingRouter);
 
 export default router;

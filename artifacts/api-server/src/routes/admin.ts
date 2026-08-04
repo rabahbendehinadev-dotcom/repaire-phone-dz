@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, desc, gte, ilike, and } from "drizzle-orm";
-import { db, usersTable, productsTable, ordersTable } from "@workspace/db";
+import { db, usersTable, productsTable, ordersTable, shippingRatesTable } from "@workspace/db";
 import { requireAdminSession, requirePermission, logActivity, getIp } from "../lib/admin-auth";
 
 const router: IRouter = Router();
@@ -30,6 +30,14 @@ const baseOrderCols = {
   notes: ordersTable.notes,
   createdAt: ordersTable.createdAt,
   updatedAt: ordersTable.updatedAt,
+  // Shipping metadata (migration 0003)
+  deliveryType: ordersTable.deliveryType,
+  shippingWilayaCode: ordersTable.shippingWilayaCode,
+  shippingWilayaName: ordersTable.shippingWilayaName,
+  shippingOfficeId: ordersTable.shippingOfficeId,
+  shippingOfficeName: ordersTable.shippingOfficeName,
+  estimatedDeliveryMinDays: ordersTable.estimatedDeliveryMinDays,
+  estimatedDeliveryMaxDays: ordersTable.estimatedDeliveryMaxDays,
 } as const;
 
 function formatOrder(o: any) {
@@ -38,6 +46,13 @@ function formatOrder(o: any) {
     status: o.status, items: o.items || [], subtotal: parseFloat(o.subtotal), discount: parseFloat(o.discount || "0"),
     couponCode: o.couponCode || null, shipping: parseFloat(o.shipping || "0"), total: parseFloat(o.total),
     shippingAddress: o.shippingAddress, notes: o.notes || null,
+    deliveryType: o.deliveryType || null,
+    shippingWilayaCode: o.shippingWilayaCode || null,
+    shippingWilayaName: o.shippingWilayaName || null,
+    shippingOfficeId: o.shippingOfficeId || null,
+    shippingOfficeName: o.shippingOfficeName || null,
+    estimatedDeliveryMinDays: o.estimatedDeliveryMinDays || null,
+    estimatedDeliveryMaxDays: o.estimatedDeliveryMaxDays || null,
     createdAt: o.createdAt instanceof Date ? o.createdAt.toISOString() : o.createdAt,
     updatedAt: o.updatedAt instanceof Date ? o.updatedAt.toISOString() : o.updatedAt,
   };

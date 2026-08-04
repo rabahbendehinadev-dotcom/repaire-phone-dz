@@ -21,6 +21,7 @@ export const ALL_PERMISSIONS = [
   "manage_coupons",
   "manage_banners",
   "manage_settings",
+  "manage_shipping_rates",
   "manage_admin_users",
 ] as const;
 

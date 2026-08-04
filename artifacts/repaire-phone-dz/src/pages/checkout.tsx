@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useCart } from '@/hooks/use-cart-store';
 import { useAuth } from '@/hooks/use-auth';
@@ -14,8 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { CheckCircle2, Package, MapPin, CreditCard, Truck, Banknote, AlertCircle, Upload, Copy } from 'lucide-react';
+import { CheckCircle2, Package, MapPin, CreditCard, Truck, Banknote, AlertCircle, Upload, Copy, Home, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { parseWilayaCode } from '@/lib/algeria-wilayas';
 
 const WILAYAS = [
   "01 - Adrar", "02 - Chlef", "03 - Laghouat", "04 - Oum El Bouaghi", "05 - Batna",
@@ -85,15 +86,77 @@ export default function Checkout() {
   const [proofUrl, setProofUrl] = useState('');
   const [proofSubmitted, setProofSubmitted] = useState(false);
   const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
+  // Shipping rate state — loaded dynamically when wilaya is selected
+  const [wilayaRate, setWilayaRate] = useState<any>(null);
+  const [isRateLoading, setIsRateLoading] = useState(false);
+  const [selectedDeliveryType, setSelectedDeliveryType] = useState<'domicile' | 'stop_desk' | null>(null);
+  const [availableOffices, setAvailableOffices] = useState<any[]>([]);
+  const [selectedOffice, setSelectedOffice] = useState<any>(null);
 
   const form = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: { fullName: '', phone: '', wilaya: '', commune: '', address: '', notes: '' },
   });
 
+  // Watch wilaya to fetch shipping rate when it changes
+  const watchedWilaya = form.watch('wilaya');
+  useEffect(() => {
+    if (!watchedWilaya) { setWilayaRate(null); setSelectedDeliveryType(null); setSelectedOffice(null); return; }
+    const code = parseWilayaCode(watchedWilaya);
+    if (!code) return;
+    setIsRateLoading(true); setWilayaRate(null); setSelectedDeliveryType(null); setSelectedOffice(null);
+    fetch(`/api/shipping/rates/${code}`)
+      .then(r => r.json())
+      .then(rate => {
+        if (!rate.isActive) return;
+        setWilayaRate(rate);
+        // Auto-select when only one option is enabled
+        if (rate.homeDeliveryEnabled && !rate.stopDeskEnabled) setSelectedDeliveryType('domicile');
+        else if (!rate.homeDeliveryEnabled && rate.stopDeskEnabled) setSelectedDeliveryType('stop_desk');
+      })
+      .catch(() => {})
+      .finally(() => setIsRateLoading(false));
+  }, [watchedWilaya]);
+
+  useEffect(() => {
+    if (selectedDeliveryType !== 'stop_desk' || !watchedWilaya) {
+      setAvailableOffices([]); setSelectedOffice(null); return;
+    }
+    const code = parseWilayaCode(watchedWilaya);
+    if (!code) return;
+    setSelectedOffice(null);
+    fetch(`/api/shipping/offices?wilaya=${code}`)
+      .then(r => r.json())
+      .then(d => setAvailableOffices(d.offices || []))
+      .catch(() => setAvailableOffices([]));
+  }, [selectedDeliveryType, watchedWilaya]);
+
+  const computedShipping = useMemo(() => {
+    if (!wilayaRate || !selectedDeliveryType) return Number(cart?.shipping ?? 500);
+    return selectedDeliveryType === 'domicile' ? wilayaRate.homeDeliveryPrice : wilayaRate.stopDeskPrice;
+  }, [wilayaRate, selectedDeliveryType, cart]);
+
+  const displayTotal = useMemo(() => {
+    if (!cart) return 0;
+    return (Number(cart.subtotal) || 0)
+      - (Number(cart.discount) || 0)
+      - (Number(cart.couponDiscount) || 0)
+      + computedShipping;
+  }, [cart, computedShipping]);
+
   const onSubmit = async (data: CheckoutFormValues) => {
     if (!cart || cart.items.length === 0) return;
+    // Validate stop desk office selection
+    if (selectedDeliveryType === 'stop_desk' && availableOffices.length > 0 && !selectedOffice) {
+      toast.error('Veuillez sélectionner un bureau de livraison Stop Desk'); return;
+    }
     setIsSubmitting(true);
+    const wilayaCode = parseWilayaCode(data.wilaya) ?? undefined;
+    const deliveryPayload = {
+      deliveryType: selectedDeliveryType ?? 'domicile',
+      wilayaCode,
+      officeId: selectedOffice?.id,
+    };
     try {
       const shippingAddress = {
         fullName: data.fullName,
@@ -113,7 +176,8 @@ export default function Checkout() {
             notes: data.notes,
             paymentMethod,
             idempotencyKey: idempotencyKeyRef.current,
-          },
+            ...deliveryPayload,
+          } as any,
         });
       } else {
         // Guest: send cart items directly to the guest endpoint
@@ -126,6 +190,7 @@ export default function Checkout() {
             notes: data.notes,
             paymentMethod,
             idempotencyKey: idempotencyKeyRef.current,
+            ...deliveryPayload,
           }),
         });
         if (!res.ok) {
@@ -389,6 +454,104 @@ export default function Checkout() {
             </CardContent>
           </Card>
 
+          {/* ── Delivery Type Selection ── */}
+          {watchedWilaya && (
+            <Card className="border-border shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
+                  <div className="h-10 w-10 bg-blue-500/10 rounded-full flex items-center justify-center">
+                    <Truck className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <h2 className="text-xl font-bold">Mode de livraison</h2>
+                </div>
+
+                {isRateLoading ? (
+                  <div className="space-y-3">
+                    <div className="h-16 rounded-xl bg-muted/40 animate-pulse" />
+                    <div className="h-16 rounded-xl bg-muted/40 animate-pulse" />
+                  </div>
+                ) : wilayaRate ? (
+                  <div className="space-y-3">
+                    {wilayaRate.homeDeliveryEnabled && (
+                      <button type="button" onClick={() => setSelectedDeliveryType('domicile')}
+                        className={cn("w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all",
+                          selectedDeliveryType === 'domicile' ? "border-primary bg-primary/5" : "border-border bg-muted/20 hover:border-muted-foreground/30")}>
+                        <div className={cn("h-10 w-10 rounded-full flex items-center justify-center shrink-0",
+                          selectedDeliveryType === 'domicile' ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+                          <Home className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold">Livraison à domicile</div>
+                          <div className="text-sm text-muted-foreground">{wilayaRate.minDeliveryDays}–{wilayaRate.maxDeliveryDays} jours ouvrables</div>
+                        </div>
+                        <div className="font-bold text-primary text-right">{wilayaRate.homeDeliveryPrice.toLocaleString('fr-DZ')} DA</div>
+                        <div className={cn("h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center",
+                          selectedDeliveryType === 'domicile' ? "border-primary" : "border-muted-foreground/30")}>
+                          {selectedDeliveryType === 'domicile' && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
+                        </div>
+                      </button>
+                    )}
+
+                    {wilayaRate.stopDeskEnabled && (
+                      <button type="button" onClick={() => setSelectedDeliveryType('stop_desk')}
+                        className={cn("w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all",
+                          selectedDeliveryType === 'stop_desk' ? "border-primary bg-primary/5" : "border-border bg-muted/20 hover:border-muted-foreground/30")}>
+                        <div className={cn("h-10 w-10 rounded-full flex items-center justify-center shrink-0",
+                          selectedDeliveryType === 'stop_desk' ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+                          <Building2 className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold">Stop Desk — retrait en agence</div>
+                          <div className="text-sm text-muted-foreground">{wilayaRate.minDeliveryDays}–{wilayaRate.maxDeliveryDays} jours ouvrables</div>
+                        </div>
+                        <div className="font-bold text-primary text-right">{wilayaRate.stopDeskPrice.toLocaleString('fr-DZ')} DA</div>
+                        <div className={cn("h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center",
+                          selectedDeliveryType === 'stop_desk' ? "border-primary" : "border-muted-foreground/30")}>
+                          {selectedDeliveryType === 'stop_desk' && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
+                        </div>
+                      </button>
+                    )}
+
+                    {!wilayaRate.homeDeliveryEnabled && !wilayaRate.stopDeskEnabled && (
+                      <p className="text-sm text-destructive p-3 bg-destructive/5 rounded-lg">
+                        Livraison non disponible pour cette wilaya. Contactez-nous pour plus d'informations.
+                      </p>
+                    )}
+
+                    {selectedDeliveryType === 'stop_desk' && (
+                      <div className="pt-1 space-y-2">
+                        <Label className="text-sm font-semibold">Bureau de livraison</Label>
+                        {availableOffices.length === 0 ? (
+                          <p className="text-sm text-muted-foreground p-3 bg-muted/20 rounded-lg">
+                            Aucun bureau Stop Desk disponible pour cette wilaya. Veuillez choisir la livraison à domicile.
+                          </p>
+                        ) : (
+                          <Select value={selectedOffice?.id?.toString() ?? ''}
+                            onValueChange={val => setSelectedOffice(availableOffices.find(o => o.id.toString() === val) ?? null)}>
+                            <SelectTrigger className="h-10">
+                              <SelectValue placeholder="Choisir un bureau…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableOffices.map(o => (
+                                <SelectItem key={o.id} value={o.id.toString()}>
+                                  {o.name}{o.commune ? ` — ${o.commune}` : ''}{o.address ? ` (${o.address})` : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Tarif calculé automatiquement selon votre wilaya de livraison.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Payment Method */}
           <Card className="border-border shadow-sm">
             <CardContent className="p-6">
@@ -509,14 +672,22 @@ export default function Checkout() {
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Livraison</span>
-                  <span className="font-bold">{cart.shipping === 0 ? 'Gratuite' : `${Number(cart.shipping).toLocaleString('fr-DZ')} DA`}</span>
+                  <span className="font-bold">
+                    {computedShipping === 0 ? 'Gratuite' : `${computedShipping.toLocaleString('fr-DZ')} DA`}
+                  </span>
                 </div>
+                {wilayaRate && selectedDeliveryType && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Délai estimé</span>
+                    <span>{wilayaRate.minDeliveryDays}–{wilayaRate.maxDeliveryDays} jours ouvrables</span>
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-border pt-4 mb-6">
                 <div className="flex justify-between items-end">
                   <span className="font-bold text-foreground text-lg">Total</span>
-                  <span className="font-extrabold text-2xl text-primary tracking-tight">{Number(cart.total).toLocaleString('fr-DZ')} DA</span>
+                  <span className="font-extrabold text-2xl text-primary tracking-tight">{displayTotal.toLocaleString('fr-DZ')} DA</span>
                 </div>
               </div>
 

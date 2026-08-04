@@ -13,3 +13,4 @@ export * from "./admin-users";
 export * from "./admin-sessions";
 export * from "./admin-login-attempts";
 export * from "./admin-activity-log";
+export * from "./shipping";

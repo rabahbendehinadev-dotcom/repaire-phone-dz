@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
-import { db, ordersTable, cartTable, usersTable } from "@workspace/db";
+import { db, ordersTable, cartTable, usersTable, shippingRatesTable, shippingOfficesTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { requireAdminSession, requirePermission, logActivity, getIp } from "../lib/admin-auth";
 
@@ -31,6 +31,14 @@ const baseOrderCols = {
   notes: ordersTable.notes,
   createdAt: ordersTable.createdAt,
   updatedAt: ordersTable.updatedAt,
+  // Shipping metadata (migration 0003)
+  deliveryType: ordersTable.deliveryType,
+  shippingWilayaCode: ordersTable.shippingWilayaCode,
+  shippingWilayaName: ordersTable.shippingWilayaName,
+  shippingOfficeId: ordersTable.shippingOfficeId,
+  shippingOfficeName: ordersTable.shippingOfficeName,
+  estimatedDeliveryMinDays: ordersTable.estimatedDeliveryMinDays,
+  estimatedDeliveryMaxDays: ordersTable.estimatedDeliveryMaxDays,
 } as const;
 
 function formatOrder(o: any) {
@@ -44,21 +52,55 @@ function formatOrder(o: any) {
     items: o.items || [], subtotal: parseFloat(o.subtotal), discount: parseFloat(o.discount || "0"),
     couponCode: o.couponCode || null, shipping: parseFloat(o.shipping || "0"), total: parseFloat(o.total),
     shippingAddress: o.shippingAddress, notes: o.notes || null,
+    deliveryType: o.deliveryType || null,
+    shippingWilayaCode: o.shippingWilayaCode || null,
+    shippingWilayaName: o.shippingWilayaName || null,
+    shippingOfficeId: o.shippingOfficeId || null,
+    shippingOfficeName: o.shippingOfficeName || null,
+    estimatedDeliveryMinDays: o.estimatedDeliveryMinDays || null,
+    estimatedDeliveryMaxDays: o.estimatedDeliveryMaxDays || null,
     createdAt: o.createdAt instanceof Date ? o.createdAt.toISOString() : o.createdAt,
     updatedAt: o.updatedAt instanceof Date ? o.updatedAt.toISOString() : o.updatedAt,
   };
 }
 
+/** Compute shipping cost server-side from shipping_rates. Never trusts frontend price. */
+async function computeShipping(
+  wilayaCode: string | undefined, deliveryType: string | undefined, officeId: number | undefined,
+): Promise<{ shipping: number; meta: Record<string, unknown> }> {
+  const fallback = { shipping: 500, meta: {} };
+  if (!wilayaCode || !deliveryType) return fallback;
+  const code = String(wilayaCode).padStart(2, "0");
+  try {
+    const [rate] = await db.select().from(shippingRatesTable).where(eq(shippingRatesTable.wilayaCode, code));
+    if (!rate || !rate.isActive) return fallback;
+    let price: number;
+    if (deliveryType === "domicile" && rate.homeDeliveryEnabled) price = rate.homeDeliveryPrice;
+    else if (deliveryType === "stop_desk" && rate.stopDeskEnabled) price = rate.stopDeskPrice;
+    else return fallback;
+    const meta: Record<string, unknown> = {
+      deliveryType, shippingWilayaCode: code, shippingWilayaName: rate.wilayaName,
+      estimatedDeliveryMinDays: rate.minDeliveryDays, estimatedDeliveryMaxDays: rate.maxDeliveryDays,
+    };
+    if (officeId && deliveryType === "stop_desk") {
+      const [off] = await db.select({ id: shippingOfficesTable.id, name: shippingOfficesTable.name })
+        .from(shippingOfficesTable).where(eq(shippingOfficesTable.id, Number(officeId)));
+      if (off) { meta.shippingOfficeId = off.id; meta.shippingOfficeName = off.name; }
+    }
+    return { shipping: price, meta };
+  } catch { return fallback; }
+}
+
 // ── Guest order (no auth required) ──────────────────────────────────────────
 router.post("/orders/guest", async (req, res): Promise<void> => {
-  const { items, shippingAddress, notes, paymentMethod, idempotencyKey } = req.body;
+  const { items, shippingAddress, notes, paymentMethod, idempotencyKey, deliveryType, wilayaCode, officeId } = req.body;
   if (!shippingAddress || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: "items et shippingAddress requis" }); return;
   }
   const validPaymentMethods = ["cash_on_delivery", "bank_transfer", "cib_edahabia"];
   const resolvedPaymentMethod = validPaymentMethods.includes(paymentMethod) ? paymentMethod : "cash_on_delivery";
   const subtotal = items.reduce((s: number, i: any) => s + (Number(i.price) * Number(i.quantity)), 0);
-  const shipping = 500;
+  const { shipping, meta: shippingMeta } = await computeShipping(wilayaCode, deliveryType, officeId);
   const total = subtotal + shipping;
   const initialPaymentStatus = resolvedPaymentMethod === "cash_on_delivery" ? "pending" : "awaiting_confirmation";
   const [order] = await db.insert(ordersTable).values({
@@ -70,6 +112,7 @@ router.post("/orders/guest", async (req, res): Promise<void> => {
     subtotal: String(subtotal), discount: "0",
     couponCode: null, shipping: String(shipping), total: String(total),
     shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
+    ...shippingMeta as any,
   }).returning(baseOrderCols);
   res.status(201).json(formatOrder(order));
 });
@@ -96,7 +139,7 @@ router.get("/orders", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/orders", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
-  const { shippingAddress, notes, paymentMethod, idempotencyKey } = req.body;
+  const { shippingAddress, notes, paymentMethod, idempotencyKey, deliveryType, wilayaCode, officeId } = req.body;
   if (!shippingAddress) { res.status(400).json({ error: "shippingAddress requis" }); return; }
 
   const validPaymentMethods = ["cash_on_delivery", "bank_transfer", "cib_edahabia"];
@@ -108,7 +151,7 @@ router.post("/orders", requireAuth, async (req, res): Promise<void> => {
   }
   const items = cart.items as any[];
   const subtotal = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
-  const shipping = 500;
+  const { shipping, meta: shippingMeta } = await computeShipping(wilayaCode, deliveryType, officeId);
   const total = subtotal + shipping;
 
   // Payment status: bank_transfer starts as "awaiting_confirmation", others as "pending"
@@ -126,6 +169,7 @@ router.post("/orders", requireAuth, async (req, res): Promise<void> => {
     subtotal: String(subtotal), discount: "0",
     couponCode: (cart.couponCode as string) || null, shipping: String(shipping), total: String(total),
     shippingAddress: shippingAddress as any, items: items as any, notes: notes || null,
+    ...shippingMeta as any,
   }).onConflictDoNothing().returning(baseOrderCols);
 
   if (!order) {
