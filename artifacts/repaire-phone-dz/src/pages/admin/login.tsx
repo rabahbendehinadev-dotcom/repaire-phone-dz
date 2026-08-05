@@ -46,7 +46,7 @@ export default function AdminLogin() {
           <div className="h-16 mb-4 flex items-center justify-center">
             {/* Using the attached logo or fallback text */}
             <span className="font-extrabold text-3xl tracking-tight text-primary">
-              Repaire<span className="text-secondary">DZ</span>
+              Repair<span className="text-secondary">DZ</span>
             </span>
           </div>
           <h1 className="text-2xl font-bold text-foreground">Accès Administration</h1>
@@ -63,7 +63,7 @@ export default function AdminLogin() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@repairephone.dz"
+                placeholder="admin@repairphone.dz"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

@@ -224,7 +224,7 @@ function AdminSidebar() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <LayoutDashboard className="h-5 w-5" />
           </div>
-          <span className="truncate">Repaire<span className="text-secondary">DZ</span></span>
+          <span className="truncate">Repair<span className="text-secondary">DZ</span></span>
         </Link>
       </SidebarHeader>
       

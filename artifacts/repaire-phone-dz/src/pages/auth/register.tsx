@@ -43,7 +43,7 @@ export default function Register() {
         <div className="relative z-10">
           <Link href="/">
             <span className="font-extrabold text-3xl tracking-tight text-primary cursor-pointer inline-block mb-12">
-              Repaire<span className="text-secondary">DZ</span>
+              Repair<span className="text-secondary">DZ</span>
             </span>
           </Link>
           <h2 className="text-4xl lg:text-5xl font-extrabold leading-tight mb-6">
@@ -72,7 +72,7 @@ export default function Register() {
           <div className="lg:hidden mb-10 text-center">
             <Link href="/">
               <span className="font-extrabold text-3xl tracking-tight text-primary cursor-pointer inline-block">
-                Repaire<span className="text-secondary">DZ</span>
+                Repair<span className="text-secondary">DZ</span>
               </span>
             </Link>
           </div>

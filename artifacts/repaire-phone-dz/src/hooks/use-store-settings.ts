@@ -13,7 +13,7 @@ export function useStoreSettings() {
     isLoading,
     isError,
     // Convenience accessors with safe fallbacks
-    storeName: settings?.storeName ?? 'Repaire Phone DZ',
+    storeName: settings?.storeName ?? 'Repair Phone DZ',
     phone: settings?.phone ?? null,
     email: settings?.email ?? null,
     address: settings?.address ?? null,

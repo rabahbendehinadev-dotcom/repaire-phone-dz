@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/use-auth"
 
 // ─── Guest cart (localStorage) ───────────────────────────────────────────────
 
-const GUEST_CART_KEY = "repaire_guest_cart"
+const GUEST_CART_KEY = "repair_guest_cart"
 
 export interface GuestCartItem {
   productId: number

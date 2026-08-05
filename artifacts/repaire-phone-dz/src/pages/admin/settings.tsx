@@ -255,7 +255,7 @@ export default function AdminSettings() {
                         <FormItem>
                           <FormLabel className="flex items-center gap-2"><Mail className="h-4 w-4" /> Email de contact</FormLabel>
                           <FormControl>
-                            <Input type="email" placeholder="contact@repaire-phone-dz.com" {...field} />
+                            <Input type="email" placeholder="contact@repair-phone-dz.com" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -420,7 +420,7 @@ export default function AdminSettings() {
                       <FormItem>
                         <FormLabel>Titre du site (Meta Title)</FormLabel>
                         <FormControl>
-                          <Input placeholder="Repaire Phone DZ - Équipements de réparation" {...field} />
+                          <Input placeholder="Repair Phone DZ - Équipements de réparation" {...field} />
                         </FormControl>
                         <FormDescription>Le titre principal qui apparaît dans les résultats de recherche.</FormDescription>
                         <FormMessage />

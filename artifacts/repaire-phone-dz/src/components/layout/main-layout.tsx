@@ -41,7 +41,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   ];
 
   // Split storeName into two parts for coloured logo text
-  // e.g. "Repaire Phone DZ" → "Repaire Phone " + "DZ" (last word in secondary colour)
+  // e.g. "Repair Phone DZ" → "Repaire Phone " + "DZ" (last word in secondary colour)
   const logoWords = storeName.split(' ');
   const logoMain = logoWords.slice(0, -1).join(' ') || storeName;
   const logoAccent = logoWords.length > 1 ? logoWords[logoWords.length - 1] : '';

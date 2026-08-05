@@ -1,5 +1,5 @@
 /**
- * Brand colors for Repaire Phone DZ mobile app.
+ * Brand colors for Repair Phone DZ mobile app.
  * Synced from the sibling web artifact's index.css (HSL → hex).
  */
 

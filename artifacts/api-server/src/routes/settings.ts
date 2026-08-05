@@ -8,7 +8,7 @@ const router: IRouter = Router();
 async function getOrCreateSettings() {
   const rows = await db.select().from(settingsTable);
   if (rows.length > 0) return rows[0];
-  const [s] = await db.insert(settingsTable).values({ storeName: "Repaire Phone DZ", shippingCost: "500" }).returning();
+  const [s] = await db.insert(settingsTable).values({ storeName: "Repair Phone DZ", shippingCost: "500" }).returning();
   return s;
 }
 

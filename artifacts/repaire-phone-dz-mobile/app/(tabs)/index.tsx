@@ -131,7 +131,7 @@ export default function HomeScreen() {
       {/* Custom Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerLogo}>Repaire Phone DZ</Text>
+          <Text style={styles.headerLogo}>Repair Phone DZ</Text>
           <Text style={styles.headerSub}>Votre boutique tech en Algérie</Text>
         </View>
         <View style={styles.headerRight}>

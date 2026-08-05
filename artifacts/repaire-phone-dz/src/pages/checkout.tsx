@@ -34,7 +34,7 @@ const WILAYAS = [
 
 const BANK_DETAILS = {
   bankName: "BNA - Banque Nationale d'Algérie",
-  accountName: "Repaire Phone DZ SARL",
+  accountName: "Repair Phone DZ SARL",
   rib: "002 00100 4000120050 92",
   ccp: "1234567 Clé 89",
 };

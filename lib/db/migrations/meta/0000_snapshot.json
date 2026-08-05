@@ -812,7 +812,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'Repaire Phone DZ'"
+          "default": "'Repair Phone DZ'"
         },
         "logo_url": {
           "name": "logo_url",

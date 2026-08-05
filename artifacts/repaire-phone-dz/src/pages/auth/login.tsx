@@ -40,7 +40,7 @@ export default function Login() {
         <div className="relative z-10">
           <Link href="/">
             <span className="font-extrabold text-3xl tracking-tight text-primary cursor-pointer inline-block mb-12">
-              Repaire<span className="text-secondary">DZ</span>
+              Repair<span className="text-secondary">DZ</span>
             </span>
           </Link>
           <h2 className="text-4xl lg:text-5xl font-extrabold leading-tight mb-6">
@@ -70,7 +70,7 @@ export default function Login() {
           <div className="lg:hidden mb-10 text-center">
             <Link href="/">
               <span className="font-extrabold text-3xl tracking-tight text-primary cursor-pointer inline-block">
-                Repaire<span className="text-secondary">DZ</span>
+                Repair<span className="text-secondary">DZ</span>
               </span>
             </Link>
           </div>
@@ -140,7 +140,7 @@ export default function Login() {
           </form>
 
           <div className="mt-8 text-center text-sm">
-            <span className="text-muted-foreground">Nouveau sur Repaire Phone DZ ? </span>
+            <span className="text-muted-foreground">Nouveau sur Repair Phone DZ ? </span>
             <Link href="/auth/register" className="font-bold text-primary hover:text-primary/80 transition-colors">
               Créer un compte
             </Link>

@@ -1,4 +1,4 @@
-# Repaire Phone DZ
+# Repair Phone DZ
 
 Boutique e-commerce professionnelle pour la vente de matériel, outils et pièces détachées de réparation de smartphones en Algérie.
 
