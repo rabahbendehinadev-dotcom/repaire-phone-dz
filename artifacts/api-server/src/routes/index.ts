@@ -19,6 +19,7 @@ import adminUsersRouter from "./admin-users";
 import adminActivityRouter from "./admin-activity";
 import noestRouter from "./noest";
 import shippingRouter from "./shipping";
+import homepageRouter from "./homepage";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(adminUsersRouter);
 router.use(adminActivityRouter);
 router.use(noestRouter);
 router.use(shippingRouter);
+router.use(homepageRouter);
 
 export default router;
