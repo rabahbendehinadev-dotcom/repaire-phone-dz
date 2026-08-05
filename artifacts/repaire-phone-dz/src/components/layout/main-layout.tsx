@@ -264,6 +264,17 @@ export function MainLayout({ children }: MainLayoutProps) {
           </div>
           <div className="border-t border-white/10 mt-12 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-navy-foreground/50">© {currentYear} {storeName}. Tous droits réservés.</p>
+            <p className="text-sm text-navy-foreground/50 text-center">
+              Developed by{' '}
+              <a
+                href="https://gabschool.dz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary font-semibold hover:text-primary/80 transition-colors"
+              >
+                GAB School
+              </a>
+            </p>
           </div>
         </div>
       </footer>
