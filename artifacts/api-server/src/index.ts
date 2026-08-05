@@ -39,6 +39,9 @@ async function runSafeMigrations() {
     await db.execute(sql`ALTER TABLE shipping_rates ADD COLUMN IF NOT EXISTS office_delivery_enabled boolean NOT NULL DEFAULT true`);
     await db.execute(sql`ALTER TABLE shipping_rates ADD COLUMN IF NOT EXISTS office_delivery_price numeric(10,2) NOT NULL DEFAULT 0`);
 
+    // Brand rename: fix old store name in DB ("Repaire" → "Repair")
+    await db.execute(sql`UPDATE settings SET store_name = 'Repair Phone DZ' WHERE store_name = 'Repaire Phone DZ'`);
+
     logger.info("Safe migrations applied successfully");
   } catch (err) {
     logger.error({ err }, "Safe migrations failed — server will still start");
