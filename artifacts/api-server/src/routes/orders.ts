@@ -341,4 +341,19 @@ router.patch("/admin/orders/:id/payment", requireAdminSession, requirePermission
   res.json(formatOrder(order));
 });
 
+// Admin: delete an order
+router.delete("/admin/orders/:id", requireAdminSession, requirePermission("manage_orders"), async (req, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) { res.status(400).json({ error: "ID invalide" }); return; }
+    const [deleted] = await db.delete(ordersTable).where(eq(ordersTable.id, id)).returning({ id: ordersTable.id });
+    if (!deleted) { res.status(404).json({ error: "Commande non trouvée" }); return; }
+    logActivity(req.adminUser!.id, req.adminUser!.fullName, "delete_order", "order", id, null, null, getIp(req))
+      .catch(() => {});
+    res.json({ success: true, id });
+  } catch (err: any) {
+    res.status(500).json({ error: "Erreur lors de la suppression de la commande" });
+  }
+});
+
 export default router;

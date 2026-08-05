@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Eye, Filter, Download, MapPin, User, Package, Calendar, CheckSquare, Square, Printer, CreditCard, ExternalLink, CheckCircle2, XCircle, Truck, Banknote, Clock, Send, RefreshCw, RotateCcw, Home, Building2 } from 'lucide-react';
+import { Search, Eye, Filter, Download, MapPin, User, Package, Calendar, CheckSquare, Square, Printer, CreditCard, ExternalLink, CheckCircle2, XCircle, Truck, Banknote, Clock, Send, RefreshCw, RotateCcw, Home, Building2, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -52,6 +52,8 @@ export default function AdminOrders() {
   const [noestSyncing, setNoestSyncing] = useState(false);
   const [noestDeliveryType, setNoestDeliveryType] = useState<'home_delivery' | 'stop_desk'>('home_delivery');
   const [deliveryFilter, setDeliveryFilter] = useState<'all' | 'home' | 'office'>('all');
+  const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<{ id: number; num: number } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -96,6 +98,26 @@ export default function AdminOrders() {
       }
     } catch (err: any) {
       toast.error('Erreur lors de la mise à jour du statut');
+    }
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!deleteConfirmOrder) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${deleteConfirmOrder.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`Commande #${deleteConfirmOrder.num} supprimée`);
+      setDeleteConfirmOrder(null);
+      if (selectedOrder?.id === deleteConfirmOrder.id) setSelectedOrder(null);
+      queryClient.invalidateQueries({ queryKey: getListAllOrdersQueryKey() });
+    } catch {
+      toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -413,9 +435,14 @@ export default function AdminOrders() {
                     {getDeliveryBadge((order as any).deliveryType)}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => { setSelectedOrder(order); setPaymentNotes(''); }}>
-                      <Eye className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => { setSelectedOrder(order); setPaymentNotes(''); }}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteConfirmOrder({ id: order.id, num: order.id })}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -891,6 +918,29 @@ export default function AdminOrders() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteConfirmOrder} onOpenChange={(open) => !open && setDeleteConfirmOrder(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Supprimer la commande
+            </DialogTitle>
+            <DialogDescription>
+              Êtes-vous sûr de vouloir supprimer la commande <span className="font-bold text-foreground">#{deleteConfirmOrder?.num}</span> ? Cette action est irréversible.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 justify-end mt-2">
+            <Button variant="outline" onClick={() => setDeleteConfirmOrder(null)} disabled={deleting}>
+              Annuler
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteOrder} disabled={deleting}>
+              {deleting ? 'Suppression...' : 'Supprimer'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
