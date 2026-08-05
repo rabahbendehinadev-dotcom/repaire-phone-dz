@@ -149,7 +149,7 @@ export default function Cart() {
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Frais de livraison</span>
-                  <span className="font-bold">{cart.shipping === 0 ? 'Gratuite' : `${cart.shipping.toLocaleString('fr-DZ')} DA`}</span>
+                  <span className="font-bold">{cart.shipping === 0 ? 'Confirmés par téléphone' : `${cart.shipping.toLocaleString('fr-DZ')} DA`}</span>
                 </div>
               </div>
               
