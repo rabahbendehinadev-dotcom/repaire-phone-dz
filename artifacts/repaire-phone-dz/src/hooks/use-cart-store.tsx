@@ -4,7 +4,7 @@ import {
   getGetCartQueryKey
 } from "@workspace/api-client-react"
 import { useQueryClient } from "@tanstack/react-query"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { useAuth } from "@/hooks/use-auth"
 
 // ─── Guest cart (localStorage) ───────────────────────────────────────────────
@@ -63,8 +63,6 @@ const CartContext = createContext<CartContextType | undefined>(undefined)
 export function CartProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
   const queryClient = useQueryClient()
-  const { toast } = useToast()
-
   // Guest cart — initialised from localStorage
   const [guestItems, setGuestItems] = useState<GuestCartItem[]>(loadGuestItems)
 
@@ -94,10 +92,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getGetCartQueryKey() })
-            toast({ title: "Ajouté au panier", description: "Le produit a été ajouté avec succès." })
           },
           onError: () => {
-            toast({ title: "Erreur", description: "Impossible d'ajouter au panier.", variant: "destructive" })
+            toast.error("Impossible d'ajouter au panier.")
           },
         }
       )
@@ -123,9 +120,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
           return updated
         })
 
-        toast({ title: "Ajouté au panier", description: "Le produit a été ajouté avec succès." })
       } catch {
-        toast({ title: "Erreur", description: "Impossible d'ajouter au panier.", variant: "destructive" })
+        toast.error("Impossible d'ajouter au panier.")
       }
     }
   }, [addMutation, isAuthenticated, queryClient, toast])

@@ -131,7 +131,7 @@ function App() {
         <ScrollToTop />
         <AppRouter />
         <Toaster />
-        <SonnerToaster position="top-right" richColors />
+        <SonnerToaster position="bottom-right" richColors duration={3500} />
       </WouterRouter>
     </QueryClientProvider>
   );
