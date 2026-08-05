@@ -3,7 +3,7 @@ import {
   useGetCart, useAddToCart, useUpdateCartItem, useRemoveFromCart, useClearCart,
   getGetCartQueryKey
 } from "@workspace/api-client-react"
-import { useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/use-auth"
 
@@ -28,9 +28,8 @@ function saveGuestItems(items: GuestCartItem[]) {
   localStorage.setItem(GUEST_CART_KEY, JSON.stringify(items))
 }
 
-function buildGuestCart(items: GuestCartItem[]) {
+function buildGuestCart(items: GuestCartItem[], shippingCost: number) {
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0)
-  const shipping = 500
   return {
     items,
     itemCount: items.reduce((s, i) => s + i.quantity, 0),
@@ -38,8 +37,8 @@ function buildGuestCart(items: GuestCartItem[]) {
     discount: 0,
     couponDiscount: 0,
     couponCode: null as string | null,
-    shipping,
-    total: subtotal + shipping,
+    shipping: shippingCost,
+    total: subtotal + shippingCost,
   }
 }
 
@@ -63,6 +62,19 @@ const CartContext = createContext<CartContextType | undefined>(undefined)
 export function CartProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
   const queryClient = useQueryClient()
+
+  // Fetch shipping cost from admin settings — single source of truth
+  const { data: settingsData } = useQuery({
+    queryKey: ['public-settings'],
+    queryFn: async () => {
+      const res = await fetch('/api/settings')
+      if (!res.ok) return { shippingCost: 0 }
+      return res.json()
+    },
+    staleTime: 2 * 60 * 1000,
+  })
+  const shippingCost: number = settingsData?.shippingCost ?? 0
+
   // Guest cart — initialised from localStorage
   const [guestItems, setGuestItems] = useState<GuestCartItem[]>(loadGuestItems)
 
@@ -171,7 +183,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [clearMutation, queryClient, isAuthenticated])
 
-  const cart      = isAuthenticated ? apiCart : buildGuestCart(guestItems)
+  const cart      = isAuthenticated ? apiCart : buildGuestCart(guestItems, shippingCost)
   const itemCount = (cart as any)?.itemCount ?? 0
 
   return (

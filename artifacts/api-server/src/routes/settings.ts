@@ -19,7 +19,7 @@ function formatSettings(s: any) {
     phone: s.phone || null, email: s.email || null, address: s.address || null,
     facebook: s.facebook || null, instagram: s.instagram || null, whatsapp: s.whatsapp || null,
     metaTitle: s.metaTitle || null, metaDescription: s.metaDescription || null,
-    shippingCost: parseFloat(s.shippingCost || "500"),
+    shippingCost: parseFloat(s.shippingCost ?? "500"),
     freeShippingThreshold: s.freeShippingThreshold ? parseFloat(s.freeShippingThreshold) : null,
   };
 }

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, cartTable, productsTable, couponsTable } from "@workspace/db";
+import { db, cartTable, productsTable, couponsTable, settingsTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -39,14 +39,24 @@ function buildResponse(items: CartItem[], couponCode: string | null, totals: Ret
   return { items, subtotal: totals.subtotal, discount: totals.discount, couponCode, couponDiscount: totals.couponDiscount, shipping: totals.shipping, total: totals.total, itemCount: items.reduce((s, i) => s + i.quantity, 0) };
 }
 
-const SHIPPING_COST = 500;
+async function getShippingCost(): Promise<number> {
+  try {
+    const [s] = await db.select({ shippingCost: settingsTable.shippingCost }).from(settingsTable).limit(1);
+    if (!s) return 0;
+    const parsed = parseFloat(s.shippingCost ?? "0");
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
+  }
+}
 
 router.get("/cart", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as any).userId;
   const cart = await getUserCart(userId);
   const items: CartItem[] = (cart?.items as CartItem[]) || [];
   const couponCode = (cart?.couponCode as string | null) || null;
-  const totals = await computeCartTotals(items, couponCode, SHIPPING_COST);
+  const shippingCost = await getShippingCost();
+  const totals = await computeCartTotals(items, couponCode, shippingCost);
   res.json(buildResponse(items, couponCode, totals));
 });
 
@@ -77,7 +87,8 @@ router.post("/cart/items", requireAuth, async (req, res): Promise<void> => {
   } else {
     await db.insert(cartTable).values({ userId, items: items as any });
   }
-  const totals = await computeCartTotals(items, couponCode, SHIPPING_COST);
+  const shippingCostAdd = await getShippingCost();
+  const totals = await computeCartTotals(items, couponCode, shippingCostAdd);
   res.json(buildResponse(items, couponCode, totals));
 });
 
@@ -95,7 +106,8 @@ router.patch("/cart/items/:productId", requireAuth, async (req, res): Promise<vo
   }
   const couponCode = (cart.couponCode as string | null) || null;
   await db.update(cartTable).set({ items: items as any }).where(eq(cartTable.userId, userId));
-  const totals = await computeCartTotals(items, couponCode, SHIPPING_COST);
+  const shippingCostPatch = await getShippingCost();
+  const totals = await computeCartTotals(items, couponCode, shippingCostPatch);
   res.json(buildResponse(items, couponCode, totals));
 });
 
@@ -108,7 +120,8 @@ router.delete("/cart/items/:productId", requireAuth, async (req, res): Promise<v
   items = items.filter((i) => i.productId !== productId);
   const couponCode = (cart.couponCode as string | null) || null;
   await db.update(cartTable).set({ items: items as any }).where(eq(cartTable.userId, userId));
-  const totals = await computeCartTotals(items, couponCode, SHIPPING_COST);
+  const shippingCostDel = await getShippingCost();
+  const totals = await computeCartTotals(items, couponCode, shippingCostDel);
   res.json(buildResponse(items, couponCode, totals));
 });
 
@@ -121,7 +134,8 @@ router.post("/cart/coupon", requireAuth, async (req, res): Promise<void> => {
   if (!cart) { res.status(404).json({ error: "Panier vide" }); return; }
   const items: CartItem[] = (cart.items as CartItem[]) || [];
   await db.update(cartTable).set({ couponCode: code as any }).where(eq(cartTable.userId, userId));
-  const totals = await computeCartTotals(items, code, SHIPPING_COST);
+  const shippingCostCoupon = await getShippingCost();
+  const totals = await computeCartTotals(items, code, shippingCostCoupon);
   res.json(buildResponse(items, code, totals));
 });
 
