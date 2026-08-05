@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, settingsTable } from "@workspace/db";
 import { requireAdminSession, requirePermission, logActivity, getIp } from "../lib/admin-auth";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -29,15 +30,22 @@ router.get("/settings", async (_req, res): Promise<void> => {
 });
 
 router.patch("/settings", requireAdminSession, requirePermission("manage_settings"), async (req, res): Promise<void> => {
-  const settings = await getOrCreateSettings();
-  const updates: Record<string, unknown> = {};
-  const fields = ["storeName", "logoUrl", "faviconUrl", "phone", "email", "address", "facebook", "instagram", "whatsapp", "metaTitle", "metaDescription"];
-  for (const f of fields) { if (req.body[f] !== undefined) updates[f] = req.body[f]; }
-  if (req.body.shippingCost !== undefined) updates.shippingCost = String(req.body.shippingCost);
-  if (req.body.freeShippingThreshold !== undefined) updates.freeShippingThreshold = req.body.freeShippingThreshold ? String(req.body.freeShippingThreshold) : null;
-  const [s] = await db.update(settingsTable).set(updates).where(eq(settingsTable.id, settings.id)).returning();
-  await logActivity(req.adminUser!.id, req.adminUser!.fullName, "update_settings", "settings", settings.id, null, updates, getIp(req));
-  res.json(formatSettings(s || settings));
+  try {
+    const settings = await getOrCreateSettings();
+    const updates: Record<string, unknown> = {};
+    const fields = ["storeName", "logoUrl", "faviconUrl", "phone", "email", "address", "facebook", "instagram", "whatsapp", "metaTitle", "metaDescription"];
+    for (const f of fields) { if (req.body[f] !== undefined) updates[f] = req.body[f]; }
+    if (req.body.shippingCost !== undefined) updates.shippingCost = String(req.body.shippingCost);
+    if (req.body.freeShippingThreshold !== undefined) updates.freeShippingThreshold = req.body.freeShippingThreshold ? String(req.body.freeShippingThreshold) : null;
+    const [s] = await db.update(settingsTable).set(updates).where(eq(settingsTable.id, settings.id)).returning();
+    // logActivity is best-effort — don't let it block the response
+    logActivity(req.adminUser!.id, req.adminUser!.fullName, "update_settings", "settings", settings.id, null, updates, getIp(req))
+      .catch((err) => logger.error({ err }, "logActivity failed for update_settings"));
+    res.json(formatSettings(s || settings));
+  } catch (err: any) {
+    logger.error({ err: err?.message ?? err, code: err?.code }, "PATCH /settings failed");
+    res.status(500).json({ error: "Erreur lors de la mise à jour des paramètres", detail: err?.message });
+  }
 });
 
 export default router;
