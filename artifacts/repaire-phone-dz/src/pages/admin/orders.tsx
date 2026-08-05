@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Eye, Filter, Download, MapPin, User, Package, Calendar, CheckSquare, Square, Printer, CreditCard, ExternalLink, CheckCircle2, XCircle, Truck, Banknote, Clock, Send, RefreshCw, RotateCcw, Home, Building2, Trash2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Search, Eye, Filter, Download, MapPin, User, Package, Calendar, CheckSquare, Square, Printer, CreditCard, ExternalLink, CheckCircle2, XCircle, Truck, Banknote, Clock, Send, RefreshCw, RotateCcw, Home, Building2, Trash2, Phone } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -39,6 +40,63 @@ const PAYMENT_METHOD_LABELS: Record<string, { label: string; icon: React.ReactNo
   cib_edahabia: { label: 'CIB/Edahabia', icon: <CreditCard className="h-3.5 w-3.5" /> },
 };
 
+// ── WhatsApp / customer helpers ───────────────────────────────────────────────
+
+const WaIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+  </svg>
+);
+
+/** Normalize Algerian phone → 213XXXXXXXXX. Returns null if unparseable. */
+function normalizeAlgerianPhone(raw: string): string | null {
+  const cleaned = raw.replace(/[\s\-().+]/g, '');
+  if (!cleaned) return null;
+  if (/^213\d{9}$/.test(cleaned)) return cleaned;
+  if (/^0\d{9}$/.test(cleaned)) return '213' + cleaned.slice(1);
+  if (/^\d{9}$/.test(cleaned)) return '213' + cleaned;
+  return null;
+}
+
+/** Extract customer name, phone, location from order snapshot fields. */
+function extractCustomer(order: any) {
+  const addr = (order.shippingAddress as any) || {};
+  return {
+    name: addr.fullName || order.userName || 'Client sans nom',
+    phone: addr.phone || null,
+    wilaya: addr.wilaya || order.shippingWilayaName || null,
+    commune: addr.commune || null,
+    email: order.userEmail || null,
+  };
+}
+
+/** Get product summary lines from order items. */
+function getProductLines(items: any[]): Array<{ name: string; qty: number; sku?: string }> {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  return items.map((item) => ({
+    name: item.name || item.productName || 'Produit',
+    qty: Number(item.quantity ?? item.qty ?? 1),
+    sku: item.sku || item.productSku || undefined,
+  }));
+}
+
+/** Build WhatsApp pre-filled URL for an order. Returns null if phone is invalid. */
+function buildWhatsAppUrl(order: any): string | null {
+  const customer = extractCustomer(order);
+  if (!customer.phone) return null;
+  const normalized = normalizeAlgerianPhone(customer.phone);
+  if (!normalized) return null;
+  const lines = getProductLines(order.items || []);
+  const productSummary = lines.length > 0
+    ? lines.map((p) => `• ${p.name} × ${p.qty}`).join('\n')
+    : 'Produit non renseigné';
+  const deliveryLabel = order.deliveryType === 'home' ? 'Domicile'
+    : order.deliveryType === 'office' ? 'Bureau' : 'Non précisé';
+  const message =
+    `Bonjour ${customer.name},\n\nNous vous contactons concernant votre commande #${order.id} chez Repair Phone DZ.\n\nProduits :\n${productSummary}\n\nMode de livraison : ${deliveryLabel}\nTotal : ${Number(order.total).toLocaleString('fr-DZ')} DA\n\nMerci de confirmer votre commande et vos informations de livraison.`;
+  return `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+}
+
 export default function AdminOrders() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -54,13 +112,20 @@ export default function AdminOrders() {
   const [deliveryFilter, setDeliveryFilter] = useState<'all' | 'home' | 'office'>('all');
   const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<{ id: number; num: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const queryClient = useQueryClient();
+
+  // Debounce search so API isn't called on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const queryParams = {
     page,
     limit,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
     paymentStatus: paymentStatusFilter !== 'all' ? paymentStatusFilter : undefined,
   };
@@ -266,7 +331,7 @@ export default function AdminOrders() {
           <div className="relative w-full lg:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Rechercher par ID, nom ou email..."
+              placeholder="Rechercher par ID, nom, téléphone, produit..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 bg-background shadow-sm border-border h-9"
@@ -352,7 +417,8 @@ export default function AdminOrders() {
                   </button>
                 </th>
                 <th className="px-4 py-3 font-semibold w-[90px]">ID</th>
-                <th className="px-4 py-3 font-semibold">Client</th>
+                <th className="px-4 py-3 font-semibold min-w-[180px]">Client</th>
+                <th className="px-4 py-3 font-semibold min-w-[160px]">Produits</th>
                 <th className="px-4 py-3 font-semibold">Date & Heure</th>
                 <th className="px-4 py-3 font-semibold">Statut</th>
                 <th className="px-4 py-3 font-semibold">Paiement</th>
@@ -367,18 +433,19 @@ export default function AdminOrders() {
                   <tr key={i}>
                     <td className="px-4 py-4"><Skeleton className="h-4 w-4" /></td>
                     <td className="px-4 py-4"><Skeleton className="h-4 w-12" /></td>
-                    <td className="px-4 py-4"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-40 mt-1" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-28 mt-1" /><Skeleton className="h-3 w-20 mt-1" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-4 w-28" /><Skeleton className="h-3 w-20 mt-1" /></td>
                     <td className="px-4 py-4"><Skeleton className="h-4 w-24" /></td>
                     <td className="px-4 py-4"><Skeleton className="h-6 w-24 rounded-full" /></td>
                     <td className="px-4 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
                     <td className="px-4 py-4"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-4 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
-                    <td className="px-4 py-4 text-right"><Skeleton className="h-8 w-8 ml-auto" /></td>
+                    <td className="px-4 py-4 text-right"><Skeleton className="h-8 w-20 ml-auto" /></td>
                   </tr>
                 ))
               ) : ordersData?.orders?.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-16 text-center">
+                  <td colSpan={10} className="px-4 py-16 text-center">
                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                       <Package className="h-12 w-12 mb-4 text-muted-foreground/30" />
                       <p className="text-lg font-medium text-foreground">Aucune commande trouvée</p>
@@ -398,9 +465,66 @@ export default function AdminOrders() {
                       #{order.id}
                     </button>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="font-semibold text-foreground">{order.userName || 'Client invité'}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{order.userEmail}</div>
+                  <td className="px-4 py-3 max-w-[220px]">
+                    {(() => {
+                      const customer = extractCustomer(order);
+                      const normalized = customer.phone ? normalizeAlgerianPhone(customer.phone) : null;
+                      return (
+                        <div className="space-y-0.5">
+                          <div className="font-semibold text-foreground text-sm leading-tight">{customer.name}</div>
+                          {customer.phone ? (
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
+                              <a href={`tel:+${normalized ?? customer.phone}`} className="text-xs text-primary hover:underline font-mono">{customer.phone}</a>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground italic">Téléphone non renseigné</div>
+                          )}
+                          {(customer.wilaya || customer.commune) && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-1">
+                              <MapPin className="h-3 w-3 shrink-0" />
+                              {[customer.wilaya, customer.commune].filter(Boolean).join(' — ')}
+                            </div>
+                          )}
+                          {customer.email && (
+                            <div className="text-xs text-muted-foreground truncate max-w-[200px]">{customer.email}</div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                  {/* PRODUITS column */}
+                  <td className="px-4 py-3 max-w-[200px]">
+                    {(() => {
+                      const lines = getProductLines((order as any).items || []);
+                      if (lines.length === 0) return <span className="text-xs text-muted-foreground italic">Produits indisponibles</span>;
+                      const visible = lines.slice(0, 2);
+                      const extra = lines.length - 2;
+                      return (
+                        <TooltipProvider delayDuration={200}>
+                          <div className="space-y-0.5">
+                            {visible.map((p, i) => (
+                              <div key={i} className="text-xs text-foreground leading-tight">
+                                <span className="font-medium">{p.name}</span>
+                                <span className="text-muted-foreground"> × {p.qty}</span>
+                              </div>
+                            ))}
+                            {extra > 0 && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button className="text-xs text-primary hover:underline font-medium">+ {extra} autre{extra > 1 ? 's' : ''}</button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-[240px] space-y-1">
+                                  {lines.slice(2).map((p, i) => (
+                                    <div key={i} className="text-xs">{p.name} × {p.qty}</div>
+                                  ))}
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </TooltipProvider>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-sm whitespace-nowrap">
                     {format(new Date(order.createdAt), 'dd MMM yyyy, HH:mm', { locale: fr })}
@@ -435,14 +559,47 @@ export default function AdminOrders() {
                     {getDeliveryBadge((order as any).deliveryType)}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => { setSelectedOrder(order); setPaymentNotes(''); }}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteConfirmOrder({ id: order.id, num: order.id })}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <TooltipProvider delayDuration={200}>
+                      <div className="flex items-center justify-end gap-1">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => { setSelectedOrder(order); setPaymentNotes(''); }}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Voir détails</TooltipContent>
+                        </Tooltip>
+                        {(() => {
+                          const waUrl = buildWhatsAppUrl(order);
+                          return (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-[#25D366] hover:text-[#128C7E] hover:bg-green-50 dark:hover:bg-green-950/30 disabled:opacity-30"
+                                    disabled={!waUrl}
+                                    onClick={() => waUrl && window.open(waUrl, '_blank', 'noopener,noreferrer')}
+                                  >
+                                    <WaIcon className="h-4 w-4" />
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>{waUrl ? 'Contacter sur WhatsApp' : 'Numéro WhatsApp invalide'}</TooltipContent>
+                            </Tooltip>
+                          );
+                        })()}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteConfirmOrder({ id: order.id, num: order.id })}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Supprimer</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TooltipProvider>
                   </td>
                 </tr>
               ))}

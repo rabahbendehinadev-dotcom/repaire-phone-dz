@@ -287,15 +287,30 @@ router.patch("/orders/:id/payment-proof", requireAuth, async (req, res): Promise
 
 // Admin routes
 router.get("/admin/orders", requireAdminSession, requirePermission("manage_orders"), async (req, res): Promise<void> => {
-  const { page = "1", limit = "20", status, paymentStatus } = req.query as Record<string, string>;
+  const { page = "1", limit = "20", status, paymentStatus, search } = req.query as Record<string, string>;
   const pageNum = parseInt(page, 10) || 1;
   const limitNum = parseInt(limit, 10) || 20;
   const offset = (pageNum - 1) * limitNum;
-  const conditions: ReturnType<typeof eq>[] = [];
+  const conditions: any[] = [];
   if (status) conditions.push(eq(ordersTable.status, status));
   if (paymentStatus) conditions.push(eq(ordersTable.paymentStatus, paymentStatus));
+  if (search && search.trim()) {
+    const term = `%${search.trim()}%`;
+    conditions.push(sql`(
+      CAST(${ordersTable.id} AS TEXT) ILIKE ${term}
+      OR COALESCE(${ordersTable.shippingAddress}->>'fullName', '') ILIKE ${term}
+      OR COALESCE(${ordersTable.shippingAddress}->>'phone', '') ILIKE ${term}
+      OR COALESCE(CAST(${ordersTable.items} AS TEXT), '') ILIKE ${term}
+      OR COALESCE(${usersTable.name}, '') ILIKE ${term}
+      OR COALESCE(${usersTable.email}, '') ILIKE ${term}
+    )`);
+  }
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(ordersTable).where(whereClause);
+  // Always left-join users so search on user name/email works for the count too
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` })
+    .from(ordersTable)
+    .leftJoin(usersTable, eq(ordersTable.userId, usersTable.id))
+    .where(whereClause);
   const orders = await db.select({
     order: baseOrderCols, userName: usersTable.name, userEmail: usersTable.email
   }).from(ordersTable).leftJoin(usersTable, eq(ordersTable.userId, usersTable.id))
