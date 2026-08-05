@@ -67,7 +67,12 @@ if (process.env.NODE_ENV === "production") {
     }));
 
     // Everything else (favicon, fonts, etc.) → short cache
-    app.use(express.static(publicDir, { maxAge: "1h" }));
+    app.use(
+  express.static(publicDir, {
+    maxAge: "1h",
+    index: false,
+  }),
+);
 
     // SPA fallback — all non-/api routes return index.html
     // index.html must NEVER be cached: it references hashed JS/CSS by filename.
