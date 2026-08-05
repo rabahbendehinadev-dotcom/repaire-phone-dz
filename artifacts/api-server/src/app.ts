@@ -60,10 +60,22 @@ if (process.env.NODE_ENV === "production") {
     path.resolve(__dirname, "../../../public");
 
   if (existsSync(publicDir)) {
-    app.use(express.static(publicDir, { maxAge: "1y", immutable: true }));
+    // Hashed assets (/assets/*) → immutable, 1-year cache (safe: filenames change on every build)
+    app.use("/assets", express.static(path.join(publicDir, "assets"), {
+      maxAge: "1y",
+      immutable: true,
+    }));
+
+    // Everything else (favicon, fonts, etc.) → short cache
+    app.use(express.static(publicDir, { maxAge: "1h" }));
+
     // SPA fallback — all non-/api routes return index.html
+    // index.html must NEVER be cached: it references hashed JS/CSS by filename.
     // Express 5 requires a named wildcard: "/{*path}" not bare "*"
     app.get("/{*path}", (_req, res) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(publicDir, "index.html"));
     });
     logger.info({ publicDir }, "Serving frontend static files");
