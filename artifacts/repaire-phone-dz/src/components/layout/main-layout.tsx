@@ -267,7 +267,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             <p className="text-sm text-navy-foreground/50 text-center">
               Developed by{' '}
               <a
-                href="https://gab-school.com"
+                href="https://www.tiktok.com/@gabschooldz"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary font-semibold hover:text-primary/80 transition-colors"
