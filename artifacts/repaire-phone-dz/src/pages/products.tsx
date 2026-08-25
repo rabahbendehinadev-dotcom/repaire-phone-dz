@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { getProductImageSrc } from '@/lib/image-utils';
 import { useListProducts, useListCategories, useListBrands } from '@workspace/api-client-react';
@@ -9,17 +9,36 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { SlidersHorizontal, ChevronRight, Star, ShoppingCart, Heart, Filter, X } from 'lucide-react';
+import { SlidersHorizontal, ChevronLeft, ChevronRight, Star, ShoppingCart, Heart, Filter, X } from 'lucide-react';
 import { useCart } from '@/hooks/use-cart-store';
 import { useWishlist } from '@/hooks/use-wishlist';
 import { toast } from 'sonner';
 
 // Helper to parse query string
 const useQueryParams = () => {
-  const [location] = useLocation();
-  const search = window.location.search;
-  return new URLSearchParams(search);
+  // Subscribe to location changes while reading the browser's query string.
+  // Wouter's `location` value intentionally excludes `?search=...`.
+  useLocation();
+  return new URLSearchParams(window.location.search);
 };
+
+const PAGE_SIZE = 24;
+
+function getPaginationItems(totalPages: number, currentPage: number): Array<number | 'ellipsis-left' | 'ellipsis-right'> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, 'ellipsis-right', totalPages];
+  }
+
+  if (currentPage >= totalPages - 3) {
+    return [1, 'ellipsis-left', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+
+  return [1, 'ellipsis-left', currentPage - 1, currentPage, currentPage + 1, 'ellipsis-right', totalPages];
+}
 
 export default function Products() {
   const query = useQueryParams();
@@ -33,6 +52,8 @@ export default function Products() {
   const [hasDiscount, setHasDiscount] = useState<boolean>(query.get('hasDiscount') === 'true');
   const [inStock, setInStock] = useState<boolean>(query.get('inStock') === 'true');
   const [sortBy, setSortBy] = useState<string>(query.get('sortBy') || 'newest');
+  const initialPage = Number(query.get('page'));
+  const [page, setPage] = useState<number>(Number.isInteger(initialPage) && initialPage > 0 ? initialPage : 1);
   
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
@@ -47,14 +68,41 @@ export default function Products() {
     hasDiscount: hasDiscount || undefined,
     inStock: inStock || undefined,
     sortBy: sortBy as any,
-    limit: 24,
-  }, { query: { queryKey: ['products', search, categoryId, brandId, isNew, hasDiscount, inStock, sortBy] } });
+    page,
+    limit: PAGE_SIZE,
+  }, { query: { queryKey: ['products', search, categoryId, brandId, isNew, hasDiscount, inStock, sortBy, page] } });
 
   const updateFilters = (key: string, value: string | null) => {
     const params = new URLSearchParams(window.location.search);
     if (value) params.set(key, value);
     else params.delete(key);
+    params.delete('page');
+    setPage(1);
+    const queryString = params.toString();
+    setLocation(queryString ? `/products?${queryString}` : '/products');
+  };
+
+  const resetFilters = () => {
+    setSearch('');
+    setCategoryId(null);
+    setBrandId(null);
+    setIsNew(false);
+    setHasDiscount(false);
+    setInStock(false);
+    setSortBy('newest');
+    setPage(1);
+    setLocation('/products');
+  };
+
+  const goToPage = (nextPage: number) => {
+    const totalPages = productsData?.totalPages || 0;
+    if (nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', String(nextPage));
+    setPage(nextPage);
     setLocation(`/products?${params.toString()}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleApplyMobileFilters = () => {
@@ -220,13 +268,77 @@ export default function Products() {
               <Filter className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
               <h3 className="text-lg font-bold text-foreground mb-2">Aucun produit trouvé</h3>
               <p className="text-muted-foreground mb-6">Essayez de modifier vos filtres de recherche.</p>
-              <Button onClick={() => setLocation('/products')}>Réinitialiser les filtres</Button>
+              <Button onClick={resetFilters}>Réinitialiser les filtres</Button>
             </div>
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
               {productsData?.products.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
+            </div>
+          )}
+
+          {productsData && productsData.total > 0 && (
+            <div className="mt-8 flex flex-col items-center gap-4 border-t border-border pt-6">
+              <p className="text-sm text-muted-foreground text-center">
+                Affichage de <span className="font-semibold text-foreground">{(page - 1) * PAGE_SIZE + 1}</span> à{' '}
+                <span className="font-semibold text-foreground">{Math.min(page * PAGE_SIZE, productsData.total)}</span> sur{' '}
+                <span className="font-semibold text-foreground">{productsData.total}</span> produits
+              </p>
+
+              {productsData.totalPages > 1 && (
+                <nav aria-label="Pagination des produits" className="flex items-center justify-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(page - 1)}
+                    disabled={page <= 1}
+                    aria-label="Page précédente"
+                    className="gap-1 px-2.5 sm:px-3"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="hidden sm:inline">Précédent</span>
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {getPaginationItems(productsData.totalPages, page).map((item, index) => (
+                      typeof item === 'number' ? (
+                        <Button
+                          key={item}
+                          variant={item === page ? 'default' : 'outline'}
+                          size="icon"
+                          onClick={() => goToPage(item)}
+                          aria-label={`Page ${item}`}
+                          aria-current={item === page ? 'page' : undefined}
+                          className="h-9 w-9"
+                        >
+                          {item}
+                        </Button>
+                      ) : (
+                        <span
+                          key={`${item}-${index}`}
+                          className="flex h-9 w-5 items-center justify-center text-sm text-muted-foreground"
+                          aria-hidden="true"
+                        >
+                          …
+                        </span>
+                      )
+                    ))}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(page + 1)}
+                    disabled={page >= productsData.totalPages}
+                    aria-label="Page suivante"
+                    className="gap-1 px-2.5 sm:px-3"
+                  >
+                    <span className="hidden sm:inline">Suivant</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </nav>
+              )}
             </div>
           )}
         </div>
@@ -246,8 +358,7 @@ export default function Products() {
           </div>
           <div className="p-4 bg-card border-t border-border shrink-0 flex gap-3">
             <Button variant="outline" className="flex-1" onClick={() => {
-              setCategoryId(null); setBrandId(null); setIsNew(false); setHasDiscount(false); setInStock(false);
-              setLocation('/products');
+              resetFilters();
               setIsMobileFiltersOpen(false);
             }}>
               Réinitialiser
